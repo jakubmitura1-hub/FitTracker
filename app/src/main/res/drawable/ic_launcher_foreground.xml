@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Činka — v rámci bezpečnej zóny adaptívnej ikony (kruh s polomerom 33 okolo stredu) -->
+    <path
+        android:fillColor="#D4AF6A"
+        android:pathData="M30,51 H78 V57 H30 Z" />
+    <path
+        android:fillColor="#D4AF6A"
+        android:pathData="M23,34 H35 V74 H23 Z" />
+    <path
+        android:fillColor="#D4AF6A"
+        android:pathData="M73,34 H85 V74 H73 Z" />
+</vector>

@@ -1,0 +1,641 @@
+package sk.fit.tracker;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.core.content.FileProvider;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.TreeMap;
+
+public class ProfileActivity extends Activity {
+
+    private static final int REQ_EXPORT = 1001;
+    private static final int REQ_IMPORT = 1002;
+
+    /** Jedno sledované telesné meranie (obvod pása/hrudníka/bicepsu/stehna...) — vstupné pole + jeho história. */
+    private static class MeasurementField {
+        final String inputLabel;
+        final String inputHintExample;
+        final String historyTitle;
+        final String emptyHistoryText;
+        final BodyMeasurementStore store;
+        EditText input;
+        LinearLayout historyContainer;
+
+        MeasurementField(String inputLabel, String inputHintExample, String historyTitle,
+                          String emptyHistoryText, BodyMeasurementStore store) {
+            this.inputLabel = inputLabel;
+            this.inputHintExample = inputHintExample;
+            this.historyTitle = historyTitle;
+            this.emptyHistoryText = emptyHistoryText;
+            this.store = store;
+        }
+    }
+
+    private EditText etHeight;
+    private EditText etWeight;
+    private TextView tvBackupStatus;
+    private LinearLayout weightHistoryContainer;
+    private final List<MeasurementField> measurementFields = new ArrayList<>();
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getColor(R.color.bg_app));
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        int pad = dp(16);
+        root.setPadding(pad, pad, pad, pad);
+        scroll.addView(root);
+        setContentView(scroll);
+
+        TextView title = new TextView(this);
+        title.setText("👤 Profil");
+        title.setTextColor(getColor(R.color.text_white));
+        title.setTextSize(19);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Výška, váha a telesné obvody (pás, hrudník, biceps, stehno) — sledovanie postavy a vstup pre výpočet spálených kalórií z tréningu.");
+        subtitle.setTextColor(getColor(R.color.text_muted));
+        subtitle.setTextSize(12);
+        subtitle.setPadding(0, dp(2), 0, dp(20));
+        root.addView(subtitle);
+
+        LinearLayout card = UiKit.card(this);
+
+        TextView heightLabel = new TextView(this);
+        heightLabel.setText("Výška (cm)");
+        heightLabel.setTextColor(getColor(R.color.text_secondary));
+        heightLabel.setTextSize(12);
+        heightLabel.setPadding(0, 0, 0, dp(4));
+        card.addView(heightLabel);
+
+        etHeight = makeInput("napr. 180");
+        card.addView(etHeight);
+
+        TextView weightLabel = new TextView(this);
+        weightLabel.setText("Váha dnes (kg)");
+        weightLabel.setTextColor(getColor(R.color.text_secondary));
+        weightLabel.setTextSize(12);
+        weightLabel.setPadding(0, dp(14), 0, dp(4));
+        card.addView(weightLabel);
+
+        float latestWeight = ProfileStore.getWeightKg(this);
+        etWeight = makeInput(latestWeight > 0 ? "posledná: " + formatNum(latestWeight) + " kg" : "napr. 82.5");
+        card.addView(etWeight);
+
+        // Sledované telesné obvody — obvod pása (hlavný ukazovateľ chudnutia) prvý, potom
+        // hrudník, biceps, stehno. Rovnaký vzor pre všetky: karta vstupu + samostatná história.
+        measurementFields.add(new MeasurementField(
+                "Obvod pása dnes (cm, v pupku) — hlavný ukazovateľ chudnutia",
+                "napr. 85", "📏 História obvodu pása", "Zatiaľ žiadny záznam obvodu pása.",
+                new BodyMeasurementStore("FitTrackerWaist")));
+        measurementFields.add(new MeasurementField(
+                "Obvod hrudníka dnes (cm)",
+                "napr. 100", "📏 História obvodu hrudníka", "Zatiaľ žiadny záznam obvodu hrudníka.",
+                new BodyMeasurementStore("FitTrackerChest")));
+        measurementFields.add(new MeasurementField(
+                "Obvod bicepsu dnes (cm, zaťatý)",
+                "napr. 38", "📏 História obvodu bicepsu", "Zatiaľ žiadny záznam obvodu bicepsu.",
+                new BodyMeasurementStore("FitTrackerBiceps")));
+        measurementFields.add(new MeasurementField(
+                "Obvod stehna dnes (cm)",
+                "napr. 58", "📏 História obvodu stehna", "Zatiaľ žiadny záznam obvodu stehna.",
+                new BodyMeasurementStore("FitTrackerThigh")));
+
+        for (MeasurementField f : measurementFields) {
+            TextView label = new TextView(this);
+            label.setText(f.inputLabel);
+            label.setTextColor(getColor(R.color.text_secondary));
+            label.setTextSize(12);
+            label.setPadding(0, dp(14), 0, dp(4));
+            card.addView(label);
+
+            float latest = f.store.getLatest(this);
+            f.input = makeInput(latest > 0 ? "posledný: " + formatNum(latest) + " cm" : f.inputHintExample);
+            card.addView(f.input);
+        }
+
+        float existingHeight = ProfileStore.getHeightCm(this);
+        if (existingHeight > 0) etHeight.setText(formatNum(existingHeight));
+        // Váha a telesné obvody sa NEPREDVYPĹŇAJÚ — sú to dátumové záznamy, prázdne pole = dnes sa nič nové nezaznamenáva.
+
+        root.addView(card);
+
+        Button btnSave = new Button(this);
+        btnSave.setText("✔ Uložiť");
+        btnSave.setTextColor(getColor(R.color.accent_primary_text));
+        btnSave.setBackgroundColor(getColor(R.color.accent_primary_dark));
+        LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
+        saveLp.topMargin = dp(16);
+        btnSave.setLayoutParams(saveLp);
+        btnSave.setOnClickListener(v -> saveProfile());
+        root.addView(btnSave);
+
+        // ─── História váhy ──────────────────────────────────────────────────
+        root.addView(UiKit.sectionHeader(this, "📈 História váhy"));
+
+        LinearLayout historyCard = UiKit.card(this);
+        weightHistoryContainer = new LinearLayout(this);
+        weightHistoryContainer.setOrientation(LinearLayout.VERTICAL);
+        historyCard.addView(weightHistoryContainer);
+        root.addView(historyCard);
+
+        renderWeightHistory();
+
+        // ─── História telesných obvodov (pás, hrudník, biceps, stehno) ──────
+        for (MeasurementField f : measurementFields) {
+            root.addView(UiKit.sectionHeader(this, f.historyTitle));
+
+            LinearLayout measurementHistoryCard = UiKit.card(this);
+            f.historyContainer = new LinearLayout(this);
+            f.historyContainer.setOrientation(LinearLayout.VERTICAL);
+            measurementHistoryCard.addView(f.historyContainer);
+            root.addView(measurementHistoryCard);
+
+            renderMeasurementHistory(f);
+        }
+
+        // ─── Záloha dát ─────────────────────────────────────────────────────
+        TextView backupHeader = UiKit.sectionHeader(this, "💾 Záloha dát");
+        root.addView(backupHeader);
+
+        LinearLayout backupCard = UiKit.card(this);
+
+        TextView backupDesc = new TextView(this);
+        backupDesc.setText("Uloží tréningy, kardio, vlastné cviky aj profil do jedného súboru — "
+                + "vyberieš si kam (napr. priamo do Google Drive, ak máš appku nainštalovanú).");
+        backupDesc.setTextColor(getColor(R.color.text_secondary));
+        backupDesc.setTextSize(12);
+        backupDesc.setPadding(0, 0, 0, dp(10));
+        backupCard.addView(backupDesc);
+
+        tvBackupStatus = new TextView(this);
+        tvBackupStatus.setTextColor(getColor(R.color.text_muted));
+        tvBackupStatus.setTextSize(11);
+        tvBackupStatus.setPadding(0, 0, 0, dp(10));
+        updateBackupStatusLabel();
+        backupCard.addView(tvBackupStatus);
+
+        TextView btnBackup = new TextView(this);
+        btnBackup.setText("💾 Zálohovať dáta");
+        btnBackup.setTextColor(getColor(R.color.text_on_accent));
+        btnBackup.setTextSize(13);
+        btnBackup.setTypeface(null, android.graphics.Typeface.BOLD);
+        btnBackup.setGravity(android.view.Gravity.CENTER);
+        btnBackup.setPadding(0, dp(12), 0, dp(12));
+        btnBackup.setBackground(UiKit.roundedBg(this, R.color.accent_primary, UiKit.dimenPx(this, R.dimen.radius_button)));
+        LinearLayout.LayoutParams btnBackupLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        btnBackupLp.bottomMargin = dp(8);
+        btnBackup.setLayoutParams(btnBackupLp);
+        btnBackup.setOnClickListener(v -> startExport());
+        backupCard.addView(btnBackup);
+
+        TextView btnShare = new TextView(this);
+        btnShare.setText("📤 Odoslať zálohu do Google Disku a pod.");
+        btnShare.setTextColor(getColor(R.color.text_primary));
+        btnShare.setTextSize(13);
+        btnShare.setGravity(android.view.Gravity.CENTER);
+        btnShare.setPadding(0, dp(12), 0, dp(12));
+        btnShare.setBackground(UiKit.roundedBgWithBorder(
+                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_button)));
+        LinearLayout.LayoutParams btnShareLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        btnShareLp.bottomMargin = dp(8);
+        btnShare.setLayoutParams(btnShareLp);
+        btnShare.setOnClickListener(v -> shareBackup());
+        backupCard.addView(btnShare);
+
+        TextView btnShareApk = new TextView(this);
+        btnShareApk.setText("📦 Odoslať appku (.apk) do Google Disku a pod.");
+        btnShareApk.setTextColor(getColor(R.color.text_primary));
+        btnShareApk.setTextSize(13);
+        btnShareApk.setGravity(android.view.Gravity.CENTER);
+        btnShareApk.setPadding(0, dp(12), 0, dp(12));
+        btnShareApk.setBackground(UiKit.roundedBgWithBorder(
+                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_button)));
+        LinearLayout.LayoutParams btnShareApkLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        btnShareApkLp.bottomMargin = dp(8);
+        btnShareApk.setLayoutParams(btnShareApkLp);
+        btnShareApk.setOnClickListener(v -> shareApk());
+        backupCard.addView(btnShareApk);
+
+        TextView btnRestore = new TextView(this);
+        btnRestore.setText("📥 Obnoviť zo zálohy");
+        btnRestore.setTextColor(getColor(R.color.text_primary));
+        btnRestore.setTextSize(13);
+        btnRestore.setGravity(android.view.Gravity.CENTER);
+        btnRestore.setPadding(0, dp(12), 0, dp(12));
+        btnRestore.setBackground(UiKit.roundedBgWithBorder(
+                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_button)));
+        btnRestore.setOnClickListener(v -> startImport());
+        backupCard.addView(btnRestore);
+
+        root.addView(backupCard);
+
+        Button btnBack = new Button(this);
+        btnBack.setText("← Späť");
+        btnBack.setTextColor(getColor(R.color.text_white));
+        btnBack.setBackgroundColor(getColor(R.color.bg_button_neutral));
+        LinearLayout.LayoutParams backLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+        backLp.topMargin = dp(8);
+        btnBack.setLayoutParams(backLp);
+        btnBack.setOnClickListener(v -> finish());
+        root.addView(btnBack);
+    }
+
+    private void saveProfile() {
+        Float height = parseOrNull(etHeight.getText().toString());
+        Float weight = parseOrNull(etWeight.getText().toString());
+
+        boolean anyMeasurement = false;
+        for (MeasurementField f : measurementFields) {
+            Float v = parseOrNull(f.input.getText().toString());
+            if (v != null && v > 0) { anyMeasurement = true; break; }
+        }
+
+        if (height == null && (weight == null || weight <= 0) && !anyMeasurement) {
+            Toast.makeText(this, "Zadaj aspoň jeden údaj (výška, váha alebo niektorý obvod).", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (height != null) ProfileStore.setHeightCm(this, height);
+        if (weight != null && weight > 0) {
+            WeightStore.setWeight(this, ActivityStore.todayKey(), weight);
+            etWeight.setText("");
+            etWeight.setHint("posledná: " + formatNum(weight) + " kg");
+            renderWeightHistory();
+        }
+        for (MeasurementField f : measurementFields) {
+            Float v = parseOrNull(f.input.getText().toString());
+            if (v != null && v > 0) {
+                f.store.setCm(this, ActivityStore.todayKey(), v);
+                f.input.setText("");
+                f.input.setHint("posledný: " + formatNum(v) + " cm");
+                renderMeasurementHistory(f);
+            }
+        }
+
+        Toast.makeText(this, "Uložené.", Toast.LENGTH_SHORT).show();
+    }
+
+    // ─── História váhy ──────────────────────────────────────────────────────
+
+    private void renderWeightHistory() {
+        weightHistoryContainer.removeAllViews();
+
+        TreeMap<String, Float> all = WeightStore.getAllSorted(this);
+        if (all.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("Zatiaľ žiadny záznam váhy.");
+            empty.setTextColor(getColor(R.color.text_muted));
+            empty.setTextSize(12);
+            weightHistoryContainer.addView(empty);
+            return;
+        }
+
+        List<String> dates = new ArrayList<>(all.keySet());
+        Collections.reverse(dates); // najnovšie hore
+
+        for (int i = 0; i < dates.size(); i++) {
+            String dateKey = dates.get(i);
+            float weight = all.get(dateKey);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(6), 0, dp(6));
+
+            TextView tvDate = new TextView(this);
+            tvDate.setText(formatDateNice(dateKey));
+            tvDate.setTextColor(getColor(R.color.text_secondary));
+            tvDate.setTextSize(12);
+            tvDate.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(tvDate);
+
+            TextView tvWeight = new TextView(this);
+            tvWeight.setText(formatNum(weight) + " kg");
+            tvWeight.setTextColor(getColor(R.color.text_primary));
+            tvWeight.setTextSize(12);
+            tvWeight.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(tvWeight);
+
+            TextView btnDel = new TextView(this);
+            btnDel.setText(" ✕ ");
+            btnDel.setTextColor(getColor(R.color.accent_danger));
+            btnDel.setTextSize(15);
+            btnDel.setPadding(dp(12), dp(4), dp(2), dp(4));
+            btnDel.setOnClickListener(v -> confirmDeleteWeight(dateKey));
+            row.addView(btnDel);
+
+            weightHistoryContainer.addView(row);
+
+            if (i < dates.size() - 1) {
+                View sep = new View(this);
+                sep.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+                sep.setBackgroundColor(getColor(R.color.separator));
+                weightHistoryContainer.addView(sep);
+            }
+        }
+    }
+
+    private void confirmDeleteWeight(String dateKey) {
+        new AlertDialog.Builder(this)
+                .setTitle("Zmazať záznam váhy?")
+                .setMessage("Naozaj chceš zmazať záznam váhy z " + formatDateNice(dateKey) + "?")
+                .setPositiveButton("Zmazať", (dialog, which) -> {
+                    WeightStore.removeWeight(this, dateKey);
+                    renderWeightHistory();
+                })
+                .setNegativeButton("Zrušiť", null)
+                .show();
+    }
+
+    // ─── História telesných obvodov (pás, hrudník, biceps, stehno) ─────────────
+
+    private void renderMeasurementHistory(MeasurementField f) {
+        f.historyContainer.removeAllViews();
+
+        TreeMap<String, Float> all = f.store.getAllSorted(this);
+        if (all.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText(f.emptyHistoryText);
+            empty.setTextColor(getColor(R.color.text_muted));
+            empty.setTextSize(12);
+            f.historyContainer.addView(empty);
+            return;
+        }
+
+        List<String> dates = new ArrayList<>(all.keySet());
+        Collections.reverse(dates); // najnovšie hore
+
+        for (int i = 0; i < dates.size(); i++) {
+            String dateKey = dates.get(i);
+            float value = all.get(dateKey);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(6), 0, dp(6));
+
+            TextView tvDate = new TextView(this);
+            tvDate.setText(formatDateNice(dateKey));
+            tvDate.setTextColor(getColor(R.color.text_secondary));
+            tvDate.setTextSize(12);
+            tvDate.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(tvDate);
+
+            TextView tvValue = new TextView(this);
+            tvValue.setText(formatNum(value) + " cm");
+            tvValue.setTextColor(getColor(R.color.text_primary));
+            tvValue.setTextSize(12);
+            tvValue.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(tvValue);
+
+            TextView btnDel = new TextView(this);
+            btnDel.setText(" ✕ ");
+            btnDel.setTextColor(getColor(R.color.accent_danger));
+            btnDel.setTextSize(15);
+            btnDel.setPadding(dp(12), dp(4), dp(2), dp(4));
+            btnDel.setOnClickListener(v -> confirmDeleteMeasurement(f, dateKey));
+            row.addView(btnDel);
+
+            f.historyContainer.addView(row);
+
+            if (i < dates.size() - 1) {
+                View sep = new View(this);
+                sep.setLayoutParams(new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+                sep.setBackgroundColor(getColor(R.color.separator));
+                f.historyContainer.addView(sep);
+            }
+        }
+    }
+
+    private void confirmDeleteMeasurement(MeasurementField f, String dateKey) {
+        new AlertDialog.Builder(this)
+                .setTitle("Zmazať záznam?")
+                .setMessage("Naozaj chceš zmazať záznam z " + formatDateNice(dateKey) + "?")
+                .setPositiveButton("Zmazať", (dialog, which) -> {
+                    f.store.remove(this, dateKey);
+                    renderMeasurementHistory(f);
+                })
+                .setNegativeButton("Zrušiť", null)
+                .show();
+    }
+
+    private String formatDateNice(String dateKeyStr) {
+        try {
+            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            SimpleDateFormat display = new SimpleDateFormat("dd.MM.yyyy", Locale.US);
+            return display.format(parser.parse(dateKeyStr));
+        } catch (Exception e) {
+            return dateKeyStr;
+        }
+    }
+
+    // ─── Záloha / obnova ────────────────────────────────────────────────────
+
+    private void startExport() {
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        String filename = "fittracker_zaloha_" + ActivityStore.todayKey() + ".json";
+        intent.putExtra(Intent.EXTRA_TITLE, filename);
+        startActivityForResult(intent, REQ_EXPORT);
+    }
+
+    private void startImport() {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("application/json");
+        startActivityForResult(intent, REQ_IMPORT);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode != RESULT_OK || data == null || data.getData() == null) return;
+        Uri uri = data.getData();
+
+        if (requestCode == REQ_EXPORT) {
+            doExport(uri);
+        } else if (requestCode == REQ_IMPORT) {
+            confirmAndImport(uri);
+        }
+    }
+
+    private void doExport(Uri uri) {
+        try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+            String json = BackupManager.export(this);
+            if (out == null) throw new IllegalStateException("Nepodarilo sa otvoriť súbor na zápis.");
+            out.write(json.getBytes(StandardCharsets.UTF_8));
+            ProfileStore.setLastBackupAt(this, System.currentTimeMillis());
+            updateBackupStatusLabel();
+            Toast.makeText(this, "Záloha uložená.", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Zálohovanie zlyhalo: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Vygeneruje zálohu a otvorí systémovú ponuku "Zdieľať" — Google Disk sa v nej ponúkne priamo, ak je nainštalovaný. */
+    private void shareBackup() {
+        try {
+            String json = BackupManager.export(this);
+            File file = new File(getCacheDir(), "fittracker_zaloha.json");
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(json.getBytes(StandardCharsets.UTF_8));
+            }
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("application/json");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            ProfileStore.setLastBackupAt(this, System.currentTimeMillis());
+            updateBackupStatusLabel();
+
+            startActivity(Intent.createChooser(shareIntent, "Odoslať zálohu do..."));
+        } catch (Exception e) {
+            Toast.makeText(this, "Zdieľanie zlyhalo: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /** Skopíruje nainštalované .apk do cache a otvorí systémovú ponuku "Zdieľať" (napr. do Google Disku). */
+    private void shareApk() {
+        try {
+            File sourceApk = new File(getApplicationInfo().sourceDir);
+            File destApk = new File(getCacheDir(), "FitTracker.apk");
+            copyFile(sourceApk, destApk);
+
+            Uri uri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", destApk);
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("application/vnd.android.package-archive");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            startActivity(Intent.createChooser(shareIntent, "Odoslať appku (.apk) do..."));
+        } catch (Exception e) {
+            Toast.makeText(this, "Odoslanie appky zlyhalo: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void copyFile(File src, File dst) throws Exception {
+        try (InputStream in = new FileInputStream(src); OutputStream out = new FileOutputStream(dst)) {
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = in.read(buffer)) != -1) out.write(buffer, 0, len);
+        }
+    }
+
+    private void confirmAndImport(Uri uri) {
+        new AlertDialog.Builder(this)
+                .setTitle("Obnoviť zo zálohy?")
+                .setMessage("Týmto prepíšeš VŠETKY aktuálne dáta v appke obsahom zvoleného súboru. "
+                        + "Táto akcia sa nedá vrátiť späť.")
+                .setPositiveButton("Obnoviť", (dialog, which) -> doImport(uri))
+                .setNegativeButton("Zrušiť", null)
+                .show();
+    }
+
+    private void doImport(Uri uri) {
+        try (InputStream in = getContentResolver().openInputStream(uri)) {
+            if (in == null) throw new IllegalStateException("Nepodarilo sa otvoriť zvolený súbor.");
+            String json = readAll(in);
+            BackupManager.restore(this, json);
+            Toast.makeText(this, "Dáta obnovené zo zálohy.", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Obnovenie zlyhalo: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String readAll(InputStream in) throws Exception {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[4096];
+        int read;
+        while ((read = in.read(chunk)) != -1) buffer.write(chunk, 0, read);
+        return buffer.toString("UTF-8");
+    }
+
+    private void updateBackupStatusLabel() {
+        long lastBackup = ProfileStore.getLastBackupAt(this);
+        if (lastBackup <= 0) {
+            tvBackupStatus.setText("Zatiaľ žiadna záloha.");
+        } else {
+            SimpleDateFormat fmt = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+            tvBackupStatus.setText("Posledná záloha: " + fmt.format(new Date(lastBackup)));
+        }
+    }
+
+    private Float parseOrNull(String s) {
+        if (s == null || s.trim().isEmpty()) return null;
+        try {
+            return Float.parseFloat(s.trim().replace(',', '.'));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String formatNum(float v) {
+        return (v == Math.floor(v))
+                ? String.format(Locale.getDefault(), "%.0f", v)
+                : String.format(Locale.getDefault(), "%.1f", v);
+    }
+
+    private EditText makeInput(String hint) {
+        EditText et = new EditText(this);
+        et.setHint(hint);
+        et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        et.setTextColor(getColor(R.color.text_primary));
+        et.setHintTextColor(getColor(R.color.text_muted));
+        et.setBackground(UiKit.roundedBgWithBorder(
+                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_chip)));
+        et.setPadding(dp(10), dp(8), dp(10), dp(8));
+        et.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        return et;
+    }
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density);
+    }
+}

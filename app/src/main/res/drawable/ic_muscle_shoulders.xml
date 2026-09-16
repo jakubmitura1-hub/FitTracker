@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ramená — pohľad spredu, zvýraznené len delty -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="36dp"
+    android:viewportWidth="120"
+    android:viewportHeight="200">
+
+    <!-- hlava -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M47,17A13,13 0 1 0 73,17A13,13 0 1 0 47,17Z" />
+    <!-- krk -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M56,28H64A3,3 0 0 1 67,31V34A3,3 0 0 1 64,37H56A3,3 0 0 1 53,34V31A3,3 0 0 1 56,28Z" />
+    <!-- ramená (predné delty) -->
+    <path android:fillColor="@color/muscle_highlight"
+        android:pathData="M18,47A13,11 0 1 0 44,47A13,11 0 1 0 18,47Z" />
+    <path android:fillColor="@color/muscle_highlight"
+        android:pathData="M76,47A13,11 0 1 0 102,47A13,11 0 1 0 76,47Z" />
+    <!-- prsia -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M51,45H69A11,11 0 0 1 80,56V69A11,11 0 0 1 69,80H51A11,11 0 0 1 40,69V56A11,11 0 0 1 51,45Z" />
+    <!-- brucho -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M52,81H68A8,8 0 0 1 76,89V107A8,8 0 0 1 68,115H52A8,8 0 0 1 44,107V89A8,8 0 0 1 52,81Z" />
+    <!-- horné časti rúk -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M24.5,49A7.5,7.5 0 0 1 32,56.5V84.5A7.5,7.5 0 0 1 24.5,92A7.5,7.5 0 0 1 17,84.5V56.5A7.5,7.5 0 0 1 24.5,49Z" />
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M95.5,49A7.5,7.5 0 0 1 103,56.5V84.5A7.5,7.5 0 0 1 95.5,92A7.5,7.5 0 0 1 88,84.5V56.5A7.5,7.5 0 0 1 95.5,49Z" />
+    <!-- predlaktia -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M22.5,95A6.5,6.5 0 0 1 29,101.5V121.5A6.5,6.5 0 0 1 22.5,128A6.5,6.5 0 0 1 16,121.5V101.5A6.5,6.5 0 0 1 22.5,95Z" />
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M97.5,95A6.5,6.5 0 0 1 104,101.5V121.5A6.5,6.5 0 0 1 97.5,128A6.5,6.5 0 0 1 91,121.5V101.5A6.5,6.5 0 0 1 97.5,95Z" />
+    <!-- bedrá -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M48,115H72A6,6 0 0 1 78,121V123A6,6 0 0 1 72,129H48A6,6 0 0 1 42,123V121A6,6 0 0 1 48,115Z" />
+    <!-- stehná -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M49.5,129A8.5,8.5 0 0 1 58,137.5V160.5A8.5,8.5 0 0 1 49.5,169A8.5,8.5 0 0 1 41,160.5V137.5A8.5,8.5 0 0 1 49.5,129Z" />
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M70.5,129A8.5,8.5 0 0 1 79,137.5V160.5A8.5,8.5 0 0 1 70.5,169A8.5,8.5 0 0 1 62,160.5V137.5A8.5,8.5 0 0 1 70.5,129Z" />
+    <!-- lýtka -->
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M49.5,170A7.5,7.5 0 0 1 57,177.5V190.5A7.5,7.5 0 0 1 49.5,198A7.5,7.5 0 0 1 42,190.5V177.5A7.5,7.5 0 0 1 49.5,170Z" />
+    <path android:fillColor="@color/muscle_neutral"
+        android:pathData="M70.5,170A7.5,7.5 0 0 1 78,177.5V190.5A7.5,7.5 0 0 1 70.5,198A7.5,7.5 0 0 1 63,190.5V177.5A7.5,7.5 0 0 1 70.5,170Z" />
+</vector>

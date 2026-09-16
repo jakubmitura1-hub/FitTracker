@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Prémiová tmavá paleta: antracit + zlatý akcent. Toto je to "jedno miesto" na zmenu vzhľadu appky. -->
+
+    <!-- Pozadia -->
+    <color name="bg_app">#0B0A09</color>
+    <color name="bg_card">#1B1917</color>
+    <color name="bg_card_alt">#211D18</color>
+    <color name="bg_hint">#201B12</color>
+    <color name="bg_chip">#141210</color>
+    <color name="bg_input">#17140F</color>
+    <color name="bg_button_neutral">#2B2822</color>
+
+    <!-- Text -->
+    <color name="text_primary">#ECE6D9</color>
+    <color name="text_secondary">#B5AC9C</color>
+    <color name="text_muted">#867C6C</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_on_accent">#1A1509</color>
+
+    <!-- Hlavný akcent (zlatá) -->
+    <color name="accent_primary">#D4AF6A</color>
+    <color name="accent_primary_dark">#8A6B2E</color>
+    <color name="accent_primary_soft">#F0D9A6</color>
+    <color name="accent_primary_text">#FBF3E1</color>
+
+    <!-- Sekundárny akcent (tlačidlo Progres na hlavnej obrazovke) -->
+    <color name="accent_secondary">#3E362A</color>
+
+    <!-- Zvýraznenie (osobné rekordy) -->
+    <color name="accent_highlight">#E8A33D</color>
+
+    <!-- Nebezpečenstvo / zmazanie -->
+    <color name="accent_danger">#D9695F</color>
+    <color name="accent_danger_dark">#9C3B34</color>
+    <color name="accent_danger_darker">#6E2A25</color>
+
+    <!-- Kalendár -->
+    <color name="today_bg">#2A2312</color>
+    <color name="today_stroke">#D4AF6A</color>
+    <color name="day_cell_bg">#161310</color>
+
+    <!-- Ostatné -->
+    <color name="separator">#2E2A22</color>
+    <color name="input_border">#3A3428</color>
+
+    <!-- Diagramy svalových partií (legenda na hlavnej obrazovke) -->
+    <color name="muscle_neutral">#4A4438</color>
+    <color name="muscle_highlight">#E0503F</color>
+</resources>

@@ -1,0 +1,551 @@
+package sk.fit.tracker;
+
+import android.app.Activity;
+import android.app.AlertDialog;
+import android.os.Bundle;
+import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+public class ExerciseHistoryActivity extends Activity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        LinearLayout outer = new LinearLayout(this);
+        outer.setOrientation(LinearLayout.VERTICAL);
+        outer.setBackgroundColor(getColor(R.color.bg_app));
+        setContentView(outer);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        outer.addView(scroll);
+
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(16), dp(16), dp(16));
+        scroll.addView(root);
+
+        TextView title = new TextView(this);
+        title.setText("🏋️ Progres v cvičeniach");
+        title.setTextColor(getColor(R.color.text_white));
+        title.setTextSize(19);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        root.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Vývoj váh — najnovšie hore");
+        subtitle.setTextColor(getColor(R.color.text_muted));
+        subtitle.setTextSize(12);
+        subtitle.setPadding(0, dp(2), 0, dp(18));
+        root.addView(subtitle);
+
+        // Kluc = nazov cvicenia, hodnota = zoznam [dateKey, Exercise] chrono
+        Map<String, List<Object[]>> history = ExerciseStore.getHistoryGroupedByExerciseName(this);
+
+        if (history.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("Ešte žiadne zaznamenané cvičenia.\nPridaj ich pri tréningu v kalendári.");
+            empty.setTextColor(getColor(R.color.text_muted));
+            empty.setTextSize(13);
+            root.addView(empty);
+        } else {
+            for (Map.Entry<String, List<Object[]>> entry : history.entrySet()) {
+                root.addView(buildExerciseCard(entry.getKey(), entry.getValue()));
+            }
+
+            Map<String, Object[]> personalBests = ExerciseStore.getPersonalBestsByExercise(this);
+            if (!personalBests.isEmpty()) {
+                root.addView(buildPersonalBestsCard(personalBests));
+            }
+        }
+
+        Button btnBack = new Button(this);
+        btnBack.setText("← Späť");
+        btnBack.setTextColor(getColor(R.color.text_white));
+        btnBack.setBackgroundColor(getColor(R.color.bg_button_neutral));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
+        lp.setMargins(dp(16), dp(8), dp(16), dp(16));
+        btnBack.setLayoutParams(lp);
+        btnBack.setOnClickListener(v -> finish());
+        outer.addView(btnBack);
+    }
+
+    // ─── Osobné rekordy ──────────────────────────────────────────────────────
+
+    private LinearLayout buildPersonalBestsCard(Map<String, Object[]> personalBests) {
+        LinearLayout card = UiKit.card(this);
+
+        TextView header = new TextView(this);
+        header.setText("🏆 Osobné rekordy");
+        header.setTextColor(getColor(R.color.text_white));
+        header.setTextSize(15);
+        header.setTypeface(null, android.graphics.Typeface.BOLD);
+        header.setPadding(0, 0, 0, dp(10));
+        card.addView(header);
+
+        boolean first = true;
+        for (Map.Entry<String, Object[]> e : personalBests.entrySet()) {
+            if (!first) {
+                android.view.View sep = new android.view.View(this);
+                LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+                sep.setLayoutParams(sepLp);
+                sep.setBackgroundColor(getColor(R.color.separator));
+                card.addView(sep);
+            }
+            first = false;
+
+            String name = e.getKey();
+            float weight = (Float) e.getValue()[0];
+            String date = (String) e.getValue()[1];
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(0, dp(6), 0, dp(6));
+
+            TextView tvName = new TextView(this);
+            tvName.setText(name);
+            tvName.setTextColor(getColor(R.color.text_primary));
+            tvName.setTextSize(12);
+            tvName.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            row.addView(tvName);
+
+            TextView tvPb = new TextView(this);
+            tvPb.setText(formatKg(weight) + "kg  ·  " + formatNice(date));
+            tvPb.setTextColor(getColor(R.color.accent_highlight));
+            tvPb.setTextSize(12);
+            tvPb.setTypeface(null, android.graphics.Typeface.BOLD);
+            row.addView(tvPb);
+
+            card.addView(row);
+        }
+
+        return card;
+    }
+
+    // ─── Karta jedného cvičenia ─────────────────────────────────────────────
+
+    private LinearLayout buildExerciseCard(String name, List<Object[]> entriesChrono) {
+        LinearLayout card = UiKit.card(this);
+
+        Exercise latestEx = (Exercise) entriesChrono.get(entriesChrono.size() - 1)[1];
+
+        // Hlavička karty — obrázok (sval alebo v budúcnosti profi vizuál) + názov cvičenia.
+        LinearLayout nameRow = new LinearLayout(this);
+        nameRow.setOrientation(LinearLayout.HORIZONTAL);
+        nameRow.setGravity(Gravity.CENTER_VERTICAL);
+        nameRow.setPadding(0, 0, 0, dp(8));
+
+        String detailedUrl = latestEx.getDetailedVisualUrl();
+        if (detailedUrl != null) {
+            // TODO: budúcnosť — profesionálny 3D vizuál zo siete (Glide/Picasso, aby sa veľké
+            // obrázky sťahovali/cachovali bez zahltenia pamäte telefónu). Kým getDetailedVisualUrl()
+            // vždy vracia null, appka sem nikdy nedôjde a použije sa lokálny obrázok svalu nižšie.
+        } else {
+            String categoryKey = ExerciseCatalog.findCategoryKeyForExercise(this, name);
+            int muscleRes = categoryKey != null ? Category.muscleDrawableFor(categoryKey) : 0;
+            if (muscleRes != 0) {
+                android.widget.ImageView muscleIcon = new android.widget.ImageView(this);
+                muscleIcon.setImageResource(muscleRes);
+                LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(18), dp(30));
+                iconLp.rightMargin = dp(10);
+                muscleIcon.setLayoutParams(iconLp);
+                nameRow.addView(muscleIcon);
+            }
+        }
+
+        TextView tvName = new TextView(this);
+        tvName.setText(name);
+        tvName.setTextColor(getColor(R.color.text_white));
+        tvName.setTextSize(15);
+        tvName.setTypeface(null, android.graphics.Typeface.BOLD);
+        nameRow.addView(tvName);
+        card.addView(nameRow);
+
+        // Typ merania tohto cvičenia — podľa najnovšieho záznamu (chronologicky posledný v zozname).
+        MetricType metricType = latestEx.metricType();
+
+        // Hero riadok — aktuálna hodnota (posledný tréning) veľkým písmom + farebný trend
+        // chip oproti predchádzajúcemu tréningu, nech je progres čitateľný na prvý pohľad
+        // bez nutnosti prechádzať celú históriu sérií.
+        LinearLayout heroLeft = new LinearLayout(this);
+        heroLeft.setOrientation(LinearLayout.VERTICAL);
+        heroLeft.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+
+        TextView heroValue = new TextView(this);
+        heroValue.setTextColor(getColor(R.color.accent_primary_soft));
+        heroValue.setTextSize(23);
+        heroValue.setTypeface(null, android.graphics.Typeface.BOLD);
+        heroLeft.addView(heroValue);
+
+        TextView heroLabel = new TextView(this);
+        heroLabel.setTextColor(getColor(R.color.text_muted));
+        heroLabel.setTextSize(11);
+        heroLabel.setPadding(0, dp(2), 0, 0);
+        heroLeft.addView(heroLabel);
+
+        TextView trendChip = new TextView(this);
+        trendChip.setTextSize(12);
+        trendChip.setTypeface(null, android.graphics.Typeface.BOLD);
+        trendChip.setPadding(dp(10), dp(5), dp(10), dp(5));
+
+        LinearLayout heroRow = new LinearLayout(this);
+        heroRow.setOrientation(LinearLayout.HORIZONTAL);
+        heroRow.setGravity(Gravity.CENTER_VERTICAL);
+        heroRow.setPadding(0, dp(2), 0, dp(10));
+        heroRow.addView(heroLeft);
+        heroRow.addView(trendChip);
+        card.addView(heroRow);
+
+        // Graf vývoja (potrebuje aspoň 2 záznamy) — pre klasické cviky prepínateľný medzi max.
+        // váhou a odhadovaným 1RM; pre vlastnú váhu graf max. opakovaní; pre časové cviky graf
+        // najdlhšej výdrže.
+        if (entriesChrono.size() >= 2) {
+            List<Float> primaryValues = new ArrayList<>();
+            List<Float> oneRmValues = new ArrayList<>();
+            List<String> chartLabels = new ArrayList<>();
+            for (Object[] o : entriesChrono) {
+                Exercise ex = (Exercise) o[1];
+                chartLabels.add(formatNice((String) o[0]));
+                if (metricType == MetricType.DURATION) {
+                    primaryValues.add((float) ex.maxDurationSeconds());
+                } else if (metricType == MetricType.BODYWEIGHT_AND_REPS) {
+                    primaryValues.add((float) ex.maxReps());
+                } else {
+                    primaryValues.add(ex.maxWeight());
+                    oneRmValues.add(ex.getMaxEstimated1RM());
+                }
+            }
+
+            TextView chartToggle = new TextView(this);
+            chartToggle.setText(metricType == MetricType.DURATION ? "📈 Najdlhšia výdrž"
+                    : metricType == MetricType.BODYWEIGHT_AND_REPS ? "📈 Max opakovania"
+                    : "📈 Max váha  (klikni pre odhad. 1RM)");
+            chartToggle.setTextColor(getColor(R.color.accent_primary));
+            chartToggle.setTextSize(11);
+            chartToggle.setPadding(0, 0, 0, dp(4));
+            card.addView(chartToggle);
+
+            LineChartView chart = new LineChartView(this);
+            LinearLayout.LayoutParams chartLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(96));
+            chartLp.bottomMargin = dp(12);
+            chart.setLayoutParams(chartLp);
+            chart.setData(primaryValues, chartLabels);
+            card.addView(chart);
+
+            applyHero(heroValue, heroLabel, trendChip, metricType, false, primaryValues);
+
+            if (metricType == MetricType.WEIGHT_AND_REPS) {
+                boolean[] showingOneRm = {false};
+                chartToggle.setOnClickListener(v -> {
+                    showingOneRm[0] = !showingOneRm[0];
+                    if (showingOneRm[0]) {
+                        chart.setData(oneRmValues, chartLabels);
+                        chartToggle.setText("📈 Odhad. 1RM  (klikni pre max váhu)");
+                    } else {
+                        chart.setData(primaryValues, chartLabels);
+                        chartToggle.setText("📈 Max váha  (klikni pre odhad. 1RM)");
+                    }
+                    applyHero(heroValue, heroLabel, trendChip, metricType, showingOneRm[0],
+                            showingOneRm[0] ? oneRmValues : primaryValues);
+                });
+            }
+        } else {
+            List<Float> single = new ArrayList<>();
+            if (metricType == MetricType.DURATION) single.add((float) latestEx.maxDurationSeconds());
+            else if (metricType == MetricType.BODYWEIGHT_AND_REPS) single.add((float) latestEx.maxReps());
+            else single.add(latestEx.maxWeight());
+            applyHero(heroValue, heroLabel, trendChip, metricType, false, single);
+        }
+
+        // Najvyssie max weight pre PB
+        float pb = 0;
+        for (Object[] o : entriesChrono) {
+            float w = ((Exercise) o[1]).maxWeight();
+            if (w > pb) pb = w;
+        }
+
+        // Zobraz od najnovsieho — staršie tréningy (i > 0) idú do skladateľného historyContainer,
+        // nech karta pri dlhej histórii nezaberá celú obrazovku a najdôležitejšie (posledný
+        // tréning + graf) ostáva hneď viditeľné.
+        List<Object[]> reversed = new ArrayList<>(entriesChrono);
+        Collections.reverse(reversed);
+
+        LinearLayout historyContainer = new LinearLayout(this);
+        historyContainer.setOrientation(LinearLayout.VERTICAL);
+        historyContainer.setVisibility(View.GONE);
+
+        for (int i = 0; i < reversed.size(); i++) {
+            Object[] o = reversed.get(i);
+            String dateKey = (String) o[0];
+            Exercise ex = (Exercise) o[1];
+            boolean isLatest = (i == 0);
+            boolean isPB = (ex.maxWeight() == pb && pb > 0);
+            LinearLayout target = isLatest ? card : historyContainer;
+
+            // Datum riadok
+            LinearLayout rowHeader = new LinearLayout(this);
+            rowHeader.setOrientation(LinearLayout.HORIZONTAL);
+            rowHeader.setGravity(Gravity.CENTER_VERTICAL);
+            rowHeader.setPadding(0, dp(6), 0, dp(2));
+
+            TextView tvDate = new TextView(this);
+            tvDate.setText(formatNice(dateKey));
+            tvDate.setTextColor(isLatest ? getColor(R.color.accent_primary_soft) : getColor(R.color.text_muted));
+            tvDate.setTextSize(11);
+            tvDate.setTypeface(null, isLatest ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+            tvDate.setLayoutParams(new LinearLayout.LayoutParams(
+                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+            rowHeader.addView(tvDate);
+
+            if (isPB) {
+                TextView tvPB = new TextView(this);
+                tvPB.setText("🏆 PB");
+                tvPB.setTextColor(getColor(R.color.accent_highlight));
+                tvPB.setTextSize(11);
+                rowHeader.addView(tvPB);
+            }
+
+            // Sipka trendu (porovnaj max weight s predchadzajucim zaznamom)
+            if (i < reversed.size() - 1) {
+                float prevMax = ((Exercise) reversed.get(i + 1)[1]).maxWeight();
+                float curMax = ex.maxWeight();
+                String arrow = curMax > prevMax ? " ↑" : curMax < prevMax ? " ↓" : "";
+                if (!arrow.isEmpty()) {
+                    TextView tvArrow = new TextView(this);
+                    tvArrow.setText(arrow);
+                    tvArrow.setTextColor(curMax > prevMax ?
+                            getColor(R.color.accent_primary_soft) : getColor(R.color.accent_danger));
+                    tvArrow.setTextSize(13);
+                    rowHeader.addView(tvArrow);
+                }
+            }
+
+            target.addView(rowHeader);
+
+            // Riadky serii
+            for (int s = 0; s < ex.sets.size(); s++) {
+                SetEntry se = ex.sets.get(s);
+                TextView tvSet = new TextView(this);
+                tvSet.setText("  Séria " + (s + 1) + ": " + se.toString());
+                tvSet.setTextColor(isLatest ?
+                        getColor(R.color.text_primary) : getColor(R.color.text_secondary));
+                tvSet.setTextSize(12);
+                tvSet.setTypeface(android.graphics.Typeface.MONOSPACE);
+                target.addView(tvSet);
+            }
+
+            // Separator (nie za poslednym)
+            if (i < reversed.size() - 1) {
+                android.view.View sep = new android.view.View(this);
+                LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+                sepLp.topMargin = dp(6);
+                sep.setLayoutParams(sepLp);
+                sep.setBackgroundColor(getColor(R.color.separator));
+                target.addView(sep);
+            }
+        }
+
+        int olderCount = reversed.size() - 1;
+        if (olderCount > 0) {
+            TextView btnToggleHistory = new TextView(this);
+            btnToggleHistory.setText("▾ Zobraziť históriu (" + olderCount + ")");
+            btnToggleHistory.setTextColor(getColor(R.color.accent_primary));
+            btnToggleHistory.setTextSize(11);
+            btnToggleHistory.setPadding(0, dp(10), 0, dp(4));
+            btnToggleHistory.setOnClickListener(v -> {
+                boolean showing = historyContainer.getVisibility() == View.VISIBLE;
+                historyContainer.setVisibility(showing ? View.GONE : View.VISIBLE);
+                btnToggleHistory.setText((showing ? "▾ Zobraziť históriu (" : "▴ Skryť históriu (")
+                        + olderCount + ")");
+            });
+            card.addView(btnToggleHistory);
+            card.addView(historyContainer);
+        }
+
+        // Manuálne zlúčenie histórie (KROK 3) — napr. premenovanie starého neodborného
+        // názvu ("žehlička") na nový oficiálny cvik z katalógu, bez straty odtrénovaných sérií.
+        TextView btnMerge = new TextView(this);
+        btnMerge.setText("🔗 Zlúčiť s iným cvikom");
+        btnMerge.setTextColor(getColor(R.color.accent_primary));
+        btnMerge.setTextSize(11);
+        btnMerge.setPadding(0, dp(10), 0, 0);
+        btnMerge.setOnClickListener(v -> showMergeDialog(name));
+        card.addView(btnMerge);
+
+        return card;
+    }
+
+    // ─── Manuálne zlúčenie histórie dvoch cvikov ──────────────────────────────
+
+    /** Ponúkne výber cieľového (nového) cvičenia a po potvrdení zlúči doň históriu "oldName". */
+    private void showMergeDialog(String oldName) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        for (Category c : Category.all()) candidates.addAll(ExerciseCatalog.getAll(this, c.key));
+        for (Category c : Category.legacyAll()) candidates.addAll(ExerciseCatalog.getAll(this, c.key));
+        candidates.addAll(ExerciseStore.getHistoryGroupedByExerciseName(this).keySet());
+        candidates.remove(oldName);
+
+        ScrollView dialogScroll = new ScrollView(this);
+        LinearLayout dialogLayout = new LinearLayout(this);
+        dialogLayout.setOrientation(LinearLayout.VERTICAL);
+        dialogLayout.setPadding(dp(20), dp(16), dp(20), dp(16));
+        dialogScroll.addView(dialogLayout);
+
+        TextView info = new TextView(this);
+        info.setText("Vyber nový (oficiálny) cvik — všetky doterajšie odtrénované série z „"
+                + oldName + "“ sa prepíšu naň vo všetkých dňoch. Žiadna história sa nestratí.");
+        info.setTextColor(getColor(R.color.text_secondary));
+        info.setTextSize(12);
+        info.setPadding(0, 0, 0, dp(10));
+        dialogLayout.addView(info);
+
+        AutoCompleteTextView etTarget = new AutoCompleteTextView(this);
+        etTarget.setHint("Nový názov cvičenia");
+        etTarget.setInputType(InputType.TYPE_CLASS_TEXT);
+        etTarget.setTextColor(getColor(R.color.text_primary));
+        etTarget.setHintTextColor(getColor(R.color.text_muted));
+        etTarget.setBackground(UiKit.roundedBgWithBorder(
+                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_chip)));
+        etTarget.setPadding(dp(10), dp(8), dp(10), dp(8));
+        etTarget.setThreshold(1);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_dropdown_item_1line, new ArrayList<>(candidates));
+        etTarget.setAdapter(adapter);
+        etTarget.setOnClickListener(v -> etTarget.showDropDown());
+        dialogLayout.addView(etTarget);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("Zlúčiť „" + oldName + "“ s iným cvikom")
+                .setView(dialogScroll)
+                .setPositiveButton("Zlúčiť", null) // listener nižšie, aby dialóg pri chybe nezmizol
+                .setNegativeButton("Zrušiť", null)
+                .setCancelable(false)
+                .create();
+
+        dialog.setOnShowListener(d -> {
+            Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+            positive.setOnClickListener(v -> {
+                String newName = etTarget.getText().toString().trim();
+                if (newName.isEmpty()) {
+                    Toast.makeText(this, "Vyber alebo napíš nový názov cvičenia.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (newName.equals(oldName)) {
+                    Toast.makeText(this, "Nový názov musí byť iný ako pôvodný.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                new AlertDialog.Builder(this)
+                        .setTitle("Naozaj zlúčiť?")
+                        .setMessage("„" + oldName + "“ → „" + newName + "“\n\nVšetky doterajšie série sa prepíšu pod nový názov. História (grafy, maximálky) sa zachová.")
+                        .setPositiveButton("Zlúčiť", (confirmDialog, which) -> {
+                            int changedDays = ExerciseMerger.merge(this, oldName, newName);
+                            Toast.makeText(this,
+                                    changedDays > 0
+                                            ? "Zlúčené — upravených dní: " + changedDays
+                                            : "Cvik „" + oldName + "“ sa v histórii nenašiel.",
+                                    Toast.LENGTH_LONG).show();
+                            dialog.dismiss();
+                            recreate();
+                        })
+                        .setNegativeButton("Zrušiť", null)
+                        .show();
+            });
+        });
+
+        dialog.show();
+    }
+
+    private String formatKg(float w) {
+        return (w == Math.floor(w))
+                ? String.format(Locale.getDefault(), "%.0f", w)
+                : String.format(Locale.getDefault(), "%.1f", w);
+    }
+
+    /**
+     * Nastaví hero hodnotu (posledný tréning) a farebný trend chip oproti predchádzajúcemu
+     * tréningu (↑ zlepšenie, ↓ zhoršenie, → rovnako). "series" je chronologická (najnovšie
+     * posledné) a zodpovedá metrike, ktorá je práve zobrazená v grafe (max váha/1RM/opak./výdrž).
+     */
+    private void applyHero(TextView heroValue, TextView heroLabel, TextView trendChip,
+                            MetricType metricType, boolean oneRm, List<Float> series) {
+        float current = series.get(series.size() - 1);
+
+        String valueText;
+        String labelText;
+        if (metricType == MetricType.DURATION) {
+            valueText = SetEntry.formatDuration(Math.round(current));
+            labelText = "Najdlhšia výdrž · posledný tréning";
+        } else if (metricType == MetricType.BODYWEIGHT_AND_REPS) {
+            valueText = Math.round(current) + " opak.";
+            labelText = "Max opakovania · posledný tréning";
+        } else {
+            valueText = formatKg(current) + " kg";
+            labelText = (oneRm ? "Odhad. 1RM" : "Max váha") + " · posledný tréning";
+        }
+        heroValue.setText(valueText);
+        heroLabel.setText(labelText);
+
+        if (series.size() < 2) {
+            trendChip.setVisibility(View.GONE);
+            return;
+        }
+        trendChip.setVisibility(View.VISIBLE);
+        float delta = current - series.get(series.size() - 2);
+        if (Math.abs(delta) < 0.01f) {
+            trendChip.setText("→ rovnako");
+            trendChip.setTextColor(getColor(R.color.text_secondary));
+        } else if (delta > 0) {
+            trendChip.setText("↑ +" + formatDelta(metricType, delta));
+            trendChip.setTextColor(getColor(R.color.accent_primary_soft));
+        } else {
+            trendChip.setText("↓ -" + formatDelta(metricType, -delta));
+            trendChip.setTextColor(getColor(R.color.accent_danger));
+        }
+        trendChip.setBackground(UiKit.roundedBg(this, R.color.bg_chip, UiKit.dimenPx(this, R.dimen.radius_chip)));
+    }
+
+    private String formatDelta(MetricType metricType, float absDelta) {
+        if (metricType == MetricType.DURATION) return SetEntry.formatDuration(Math.round(absDelta));
+        if (metricType == MetricType.BODYWEIGHT_AND_REPS) return Math.round(absDelta) + " opak.";
+        return formatKg(absDelta) + " kg";
+    }
+
+    private String formatNice(String dateKeyStr) {
+        try {
+            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            SimpleDateFormat display = new SimpleDateFormat("dd.MM.yyyy (EEE)", new Locale("sk", "SK"));
+            return display.format(parser.parse(dateKeyStr));
+        } catch (Exception e) {
+            return dateKeyStr;
+        }
+    }
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density);
+    }
+}

@@ -1,0 +1,2 @@
+rootProject.name = "FitTracker"
+include ':app'
