@@ -34,20 +34,22 @@ Hotové, nainštalované a odskúšané na telefóne používateľa:
 - [x] **4. Onboarding**: výber partií pri prvom spustení (`OnboardingActivity`, `FocusStore`).
 - [x] **Odpočet pauzy medzi sériami** (`RestTimer`, `RestTimerBar`, `RestTimerReceiver`).
 - [x] **RPE** pri každej sérii (`SetEntry.rpe`).
+- [x] **Režim appky** (`FeatureStore`): 🧭 Sprievodca pre začiatočníka / ⚡ Len zapisovanie pre skúseného
+      + samostatné prepínače pomôcok v Profile.
 
 Ďalšie možné nápady z Lyfty: kartička na zdieľanie po tréningu (šablóny), rutiny/plány tréningov.
 Odhad 1RM, osobné rekordy a grafy objemu už appka má.
 
 ## Pozor
 
-- **Git:** všetko je commitnuté na vetve **`lyfta-features`** (commit `03b2e3c` vrátane starších zmien
-  ako ThemeStore, `values-night` a fonty). `main` je stále na `f226d74 Initial commit`. Zlúčenie do `main`
-  ani push zatiaľ neprebehli. Commitovať a pushovať len na pokyn používateľa.
+- **Git:** práca bola na vetve `lyfta-features`. Na pokyn používateľa bola 2026-11-08 zlúčená do `main`
+  a pushnutá na `origin` (github.com/jakubmitura1-hub/FitTracker). Ďalšie commity a pushe robiť
+  len na pokyn používateľa.
 - **Testovanie na reálnych dátach.** Uloženie cviku v `DayDetailActivity` spustí meranie času tréningu
   (`sessionFirstSetAtMillis` → `WorkoutTimeStore.addMinutes` pri `onPause`). Testovacie uloženie
   tak pripíše minúty k dňu a nahradí odhad kalórií. Po teste treba vrátiť dáta aj zmazať tieto
   minúty (`FitTrackerWorkoutTime.xml`, kľúč s dátumom). Rovnako to platí pre zmeny sérií.
-- Používateľ si fokus vybral sám 2026-11-08 (hrudník + ruky). Nemeň ho.
+- Používateľ si fokus vybral sám 2026-11-08 (hrudník + ruky) a je v režime **Sprievodca**. Nemeň to.
 - Povolenie notifikácií bolo udelené na pokyn používateľa.
 
 ## Ako jednotlivé časti fungujú
@@ -119,7 +121,21 @@ Odhad 1RM, osobné rekordy a grafy objemu už appka má.
 - V UI je RPE čip v každom riadku série. Je uložený ako tag `rowData[0]` (čísla série), aby sa nemenili
   indexy `rowData` v ostatnom kóde.
 
+### Režim appky (`FeatureStore`)
+- Prefs `FitTrackerFeatures`: `mode` (`guide` / `pro` / `custom`) a booleany `rest_timer`, `rpe`, `guides`,
+  `focus`. Predvolene je všetko zapnuté (Sprievodca), aj pre existujúcich používateľov.
+- Pri prvom spustení `OnboardingActivity` najprv ukáže výber režimu (`isModeChosen`). „Veď ma“ pokračuje
+  výberom partií, „Len zapisovanie“ všetko vypne a onboarding ukončí.
+- V Profile je karta „🎛️ Režim appky“ s dvomi predvoľbami a 4 prepínačmi. Ručná zmena prepínača
+  zmení režim na `custom` („Vlastné“).
+- Čo prepínače riadia:
+  - `rest_timer`: lišta pauzy v dni aj v dialógu a jej auto-štart,
+  - `rpe`: RPE čip v riadku série (vypnuté = len `GONE`, zadané RPE sa pri úprave zachová),
+  - `guides`: karta „Postup“ v detaile cviku,
+  - `focus`: riadok vo Štatistikách, chip 🎯 v katalógu a karta fokusu v Profile.
+- Fotky, svaly na postave, katalóg, detail cviku a progres zostávajú v oboch režimoch.
+
 ### Záloha (`BackupManager`)
-- Pribudli prefs `FitTrackerFavorites`, `FitTrackerMediaAliases` a `FitTrackerFocus`, plus podpora `StringSet`
+- Pribudli prefs `FitTrackerFavorites`, `FitTrackerMediaAliases`, `FitTrackerFocus` a `FitTrackerFeatures`, plus podpora `StringSet`
   (typ `"ss"`). Obľúbené a premenované cviky sa predtým do zálohy vôbec neukladali.
   Obnovenie zo zálohy nebolo na telefóne testované, aby sa neprepísali dáta.

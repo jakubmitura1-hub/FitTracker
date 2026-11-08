@@ -270,7 +270,7 @@ public class ExerciseDetailActivity extends Activity {
         // Slovenský preklad postupu, anglický originál z databázy len ako záloha
         boolean slovak = media != null && !media.instructionsSk.isEmpty();
         List<String> steps = media == null ? new ArrayList<>() : slovak ? media.instructionsSk : media.instructions;
-        if (!steps.isEmpty()) {
+        if (!steps.isEmpty() && FeatureStore.isEnabled(this, FeatureStore.GUIDES)) {
             LinearLayout howCard = UiKit.card(this);
             howCard.addView(cardTitle("Postup"));
             TextView lang = new TextView(this);

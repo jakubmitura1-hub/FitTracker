@@ -60,6 +60,10 @@ public class ProfileActivity extends Activity {
 
     private EditText etHeight;
     private TextView tvFocus;
+    private View focusCard;
+    private TextView tvModeDesc;
+    private final java.util.List<TextView> modeChips = new ArrayList<>();
+    private final java.util.Map<String, android.widget.Switch> featureSwitches = new java.util.LinkedHashMap<>();
     private EditText etWeight;
     private TextView tvBackupStatus;
     private LinearLayout weightHistoryContainer;
@@ -124,6 +128,9 @@ public class ProfileActivity extends Activity {
         focusCard.addView(focusChange);
         focusCard.setOnClickListener(v -> startActivity(OnboardingActivity.intent(this, true)));
         root.addView(focusCard);
+        this.focusCard = focusCard;
+
+        root.addView(buildModeCard());
 
         LinearLayout card = UiKit.card(this);
 
@@ -317,6 +324,115 @@ public class ProfileActivity extends Activity {
         super.onResume();
         java.util.Set<String> focus = FocusStore.getMuscles(this);
         tvFocus.setText(focus.isEmpty() ? "Nevybraté — ťukni a vyber partie" : FocusStore.describe(focus));
+        refreshMode();
+    }
+
+    // ─── Režim appky (Sprievodca / Len zapisovanie / vlastné prepínače) ──────────
+
+    private View buildModeCard() {
+        LinearLayout card = UiKit.card(this);
+
+        TextView title = new TextView(this);
+        title.setText("🎛️ Režim appky");
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(14);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        card.addView(title);
+
+        tvModeDesc = new TextView(this);
+        tvModeDesc.setTextColor(getColor(R.color.text_secondary));
+        tvModeDesc.setTextSize(12);
+        tvModeDesc.setPadding(0, dp(2), 0, dp(10));
+        card.addView(tvModeDesc);
+
+        LinearLayout chipsRow = new LinearLayout(this);
+        chipsRow.setOrientation(LinearLayout.HORIZONTAL);
+        String[][] modes = {{FeatureStore.MODE_GUIDE, "🧭 Sprievodca"}, {FeatureStore.MODE_PRO, "⚡ Len zapisovanie"}};
+        for (int i = 0; i < modes.length; i++) {
+            String mode = modes[i][0];
+            TextView chip = new TextView(this);
+            chip.setText(modes[i][1]);
+            chip.setTag(mode);
+            chip.setTextSize(13);
+            chip.setGravity(android.view.Gravity.CENTER);
+            chip.setPadding(dp(6), dp(10), dp(6), dp(10));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+            if (i > 0) lp.leftMargin = dp(8);
+            chip.setLayoutParams(lp);
+            chip.setOnClickListener(v -> {
+                FeatureStore.applyMode(this, mode);
+                refreshMode();
+            });
+            modeChips.add(chip);
+            chipsRow.addView(chip);
+        }
+        card.addView(chipsRow);
+
+        TextView customHint = new TextView(this);
+        customHint.setText("Alebo si zapni len to, čo chceš:");
+        customHint.setTextColor(getColor(R.color.text_muted));
+        customHint.setTextSize(11);
+        customHint.setPadding(0, dp(12), 0, dp(2));
+        card.addView(customHint);
+
+        addFeatureSwitch(card, FeatureStore.REST_TIMER, "⏱ Odpočet pauzy medzi sériami",
+                "Spustí sa po pridaní série, na konci zavibruje");
+        addFeatureSwitch(card, FeatureStore.RPE, "📊 RPE pri sériách",
+                "Hodnotenie, aká ťažká bola séria (6–10)");
+        addFeatureSwitch(card, FeatureStore.GUIDES, "📖 Postupy cvikov",
+                "Krok za krokom v detaile cviku");
+        addFeatureSwitch(card, FeatureStore.FOCUS, "🎯 Fokus a pripomienky",
+                "Partie, na ktoré sa sústredíš — v Štatistikách a katalógu");
+        return card;
+    }
+
+    private void addFeatureSwitch(LinearLayout card, String feature, String label, String desc) {
+        android.widget.Switch sw = new android.widget.Switch(this);
+        android.text.SpannableStringBuilder text = new android.text.SpannableStringBuilder(label + "\n" + desc);
+        text.setSpan(new android.text.style.ForegroundColorSpan(getColor(R.color.text_muted)),
+                label.length() + 1, text.length(), 0);
+        text.setSpan(new android.text.style.RelativeSizeSpan(0.85f), label.length() + 1, text.length(), 0);
+        sw.setText(text);
+        sw.setTextColor(getColor(R.color.text_primary));
+        sw.setTextSize(13);
+        sw.setPadding(0, dp(8), 0, dp(8));
+        sw.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        featureSwitches.put(feature, sw);
+        card.addView(sw);
+    }
+
+    /** Prekreslí výber režimu a prepínače podľa FeatureStore (bez spúšťania poslucháčov). */
+    private void refreshMode() {
+        if (tvModeDesc == null) return;
+        String mode = FeatureStore.getMode(this);
+        tvModeDesc.setText(FeatureStore.MODE_GUIDE.equals(mode)
+                ? "Sprievodca — appka ťa vedie: postupy, odpočet pauzy, RPE aj pripomienky."
+                : FeatureStore.MODE_PRO.equals(mode)
+                ? "Len zapisovanie — rýchle zapisovanie bez sprievodcu a vysvetliviek."
+                : "Vlastné nastavenie — zapnuté sú len vybrané pomôcky.");
+        int radius = UiKit.dimenPx(this, R.dimen.radius_chip);
+        for (TextView chip : modeChips) {
+            boolean on = mode.equals(chip.getTag());
+            chip.setBackground(on
+                    ? UiKit.roundedBgWithBorder(this, R.color.accent_primary_soft, R.color.accent_primary, dp(1), radius)
+                    : UiKit.roundedBgWithBorder(this, R.color.bg_chip, R.color.separator, dp(1), radius));
+            chip.setTextColor(getColor(on ? R.color.text_on_accent : R.color.text_secondary));
+            chip.setTypeface(null, on ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
+        for (java.util.Map.Entry<String, android.widget.Switch> e : featureSwitches.entrySet()) {
+            android.widget.Switch sw = e.getValue();
+            String feature = e.getKey();
+            sw.setOnCheckedChangeListener(null);
+            sw.setChecked(FeatureStore.isEnabled(this, feature));
+            sw.setOnCheckedChangeListener((b, checked) -> {
+                FeatureStore.setEnabled(this, feature, checked);
+                refreshMode();
+            });
+        }
+        if (focusCard != null) {
+            focusCard.setVisibility(FeatureStore.isEnabled(this, FeatureStore.FOCUS) ? View.VISIBLE : View.GONE);
+        }
     }
 
     private void saveProfile() {

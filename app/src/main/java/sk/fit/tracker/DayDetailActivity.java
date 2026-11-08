@@ -190,7 +190,7 @@ public class DayDetailActivity extends Activity {
         }
 
         // Odpočet pauzy medzi sériami — len pri dnešnom tréningu, pripnutý nad Uložiť
-        if (isToday) {
+        if (isToday && FeatureStore.isEnabled(this, FeatureStore.REST_TIMER)) {
             RestTimerBar restBar = new RestTimerBar(this);
             LinearLayout.LayoutParams restLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -952,7 +952,7 @@ public class DayDetailActivity extends Activity {
 
         // Odpočet pauzy aj priamo v dialógu — séria sa zapisuje tu, nech je odpočet na očiach
         final boolean isTodayDialog = dateKey.equals(ActivityStore.todayKey());
-        if (isTodayDialog) {
+        if (isTodayDialog && FeatureStore.isEnabled(this, FeatureStore.REST_TIMER)) {
             RestTimerBar restBar = new RestTimerBar(this);
             LinearLayout.LayoutParams restLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -1372,7 +1372,8 @@ public class DayDetailActivity extends Activity {
             addRow.run();
             if (prevRow != null) copyRowValues(prevRow, setRows.get(setRows.size() - 1), currentType[0]);
             // Pridanie ďalšej série = predchádzajúca je odcvičená -> spusti pauzu (len dnes)
-            if (isTodayDialog && RestTimer.isAutoStart(this)) {
+            if (isTodayDialog && RestTimer.isAutoStart(this)
+                    && FeatureStore.isEnabled(this, FeatureStore.REST_TIMER)) {
                 RestTimer.maybeAskNotificationPermission(this);
                 RestTimer.startDefault(this);
             }
@@ -1804,6 +1805,8 @@ public class DayDetailActivity extends Activity {
         chip.setContentDescription("RPE — náročnosť série");
         chip.setOnClickListener(v -> showRpePicker(chip));
         setRpe(chip, 0f);
+        // Vypnuté RPE (režim Len zapisovanie) čip len skryje — už zadané RPE sa pri úprave zachová
+        if (!FeatureStore.isEnabled(this, FeatureStore.RPE)) chip.setVisibility(View.GONE);
         return chip;
     }
 

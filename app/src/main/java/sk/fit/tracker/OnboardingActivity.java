@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -53,6 +54,94 @@ public class OnboardingActivity extends Activity {
             selected.addAll(FocusStore.getMuscles(this));
         }
 
+        // Prvé spustenie: najprv sa opýtaj, ako veľmi má appka viesť (začiatočník vs. skúsený)
+        if (!editMode && !FeatureStore.isModeChosen(this)) {
+            showModeChooser();
+            return;
+        }
+        buildFocusUi();
+    }
+
+    /** Krok 1 pri prvom spustení: Sprievodca (pokračuje výberom partií) alebo Len zapisovanie (koniec). */
+    private void showModeChooser() {
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setBackgroundColor(getColor(R.color.bg_app));
+        root.setPadding(dp(20), dp(32), dp(20), dp(20));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getColor(R.color.bg_app));
+        scroll.addView(root);
+        setContentView(scroll);
+
+        TextView title = new TextView(this);
+        title.setText("👋 Vitaj vo Fit Trackeri");
+        title.setTextColor(getColor(R.color.text_primary));
+        title.setTextSize(24);
+        title.setTypeface(null, Typeface.BOLD);
+        root.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Ako veľmi ťa má appka viesť? Zmeniť to môžeš kedykoľvek v Profile → Režim appky.");
+        subtitle.setTextColor(getColor(R.color.text_muted));
+        subtitle.setTextSize(14);
+        subtitle.setPadding(0, dp(8), 0, dp(20));
+        root.addView(subtitle);
+
+        root.addView(modeCard("🧭", "Veď ma", "S cvičením začínam alebo sa chcem zlepšiť.",
+                "Postupy a fotky cvikov, svaly na postave, odpočet pauzy medzi sériami, "
+                        + "hodnotenie náročnosti série (RPE) a pripomienky partií, na ktoré sa sústredíš.",
+                v -> {
+                    FeatureStore.applyMode(this, FeatureStore.MODE_GUIDE);
+                    buildFocusUi();
+                }));
+        View gap = new View(this);
+        gap.setLayoutParams(new LinearLayout.LayoutParams(1, dp(14)));
+        root.addView(gap);
+        root.addView(modeCard("⚡", "Len zapisovanie", "Viem, čo robím.",
+                "Rýchle zapisovanie sérií bez sprievodcu, vysvetliviek a odpočtov. "
+                        + "Kalendár, štatistiky, katalóg a progres ostávajú.",
+                v -> {
+                    FeatureStore.applyMode(this, FeatureStore.MODE_PRO);
+                    FocusStore.markDone(this);
+                    finish();
+                }));
+    }
+
+    private View modeCard(String emoji, String name, String who, String what, View.OnClickListener onClick) {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(18), dp(16), dp(18), dp(18));
+        card.setBackground(UiKit.roundedBgWithBorder(this, R.color.bg_card, R.color.accent_primary, dp(1),
+                UiKit.dimenPx(this, R.dimen.radius_card)));
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setOnClickListener(onClick);
+
+        TextView head = new TextView(this);
+        head.setText(emoji + "  " + name);
+        head.setTextColor(getColor(R.color.text_primary));
+        head.setTextSize(19);
+        head.setTypeface(null, Typeface.BOLD);
+        card.addView(head);
+
+        TextView tvWho = new TextView(this);
+        tvWho.setText(who);
+        tvWho.setTextColor(getColor(R.color.accent_primary));
+        tvWho.setTextSize(14);
+        tvWho.setPadding(0, dp(4), 0, dp(6));
+        card.addView(tvWho);
+
+        TextView tvWhat = new TextView(this);
+        tvWhat.setText(what);
+        tvWhat.setTextColor(getColor(R.color.text_secondary));
+        tvWhat.setTextSize(13);
+        tvWhat.setLineSpacing(0, 1.15f);
+        card.addView(tvWhat);
+        return card;
+    }
+
+    /** Krok 2: výber partií (pri prvom spustení v režime Sprievodca a z Profilu cez "Zmeniť"). */
+    private void buildFocusUi() {
         LinearLayout outer = new LinearLayout(this);
         outer.setOrientation(LinearLayout.VERTICAL);
         outer.setBackgroundColor(getColor(R.color.bg_app));

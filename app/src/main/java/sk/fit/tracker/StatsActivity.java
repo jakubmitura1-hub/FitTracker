@@ -230,7 +230,7 @@ public class StatsActivity extends Activity {
 
         // Fokus z onboardingu: ktoré z vybraných partií tento týždeň ešte nedostali tréning
         Set<String> focus = FocusStore.getMuscles(this);
-        if (!focus.isEmpty()) {
+        if (!focus.isEmpty() && FeatureStore.isEnabled(this, FeatureStore.FOCUS)) {
             Set<String> untrained = new HashSet<>(focus);
             untrained.removeAll(recent);
             untrained.removeAll(earlier);

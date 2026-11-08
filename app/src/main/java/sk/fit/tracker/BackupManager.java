@@ -33,6 +33,7 @@ public class BackupManager {
             "FitTrackerFavorites",       // FavoritesStore — obľúbené cviky
             "FitTrackerMediaAliases",    // ExerciseMedia — premenované cviky -> pôvodný záznam s fotkou
             "FitTrackerFocus",           // FocusStore — partie z onboardingu
+            "FitTrackerFeatures",        // FeatureStore — režim appky a zapnuté pomôcky
     };
 
     private BackupManager() {}

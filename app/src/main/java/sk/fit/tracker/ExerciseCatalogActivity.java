@@ -113,7 +113,9 @@ public class ExerciseCatalogActivity extends Activity {
 
         addFilterChip(ALL_CATEGORIES, "Všetky");
         addFilterChip(FAVORITES, "★ Obľúbené");
-        if (!FocusStore.getMuscles(this).isEmpty()) addFilterChip(FOCUS, "🎯 Fokus");
+        if (!FocusStore.getMuscles(this).isEmpty() && FeatureStore.isEnabled(this, FeatureStore.FOCUS)) {
+            addFilterChip(FOCUS, "🎯 Fokus");
+        }
         for (Category c : Category.all()) {
             if (!Category.GROUP_WORKOUT.equals(c.group) || "cardio".equals(c.key)) continue;
             addFilterChip(c.key, c.label);
