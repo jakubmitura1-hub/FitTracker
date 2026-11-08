@@ -40,9 +40,9 @@ Odhad 1RM, osobné rekordy a grafy objemu už appka má.
 
 ## Pozor
 
-- **Nič z tejto práce nie je commitnuté.** Posledný commit je `f226d74 Initial commit`.
-  Necommitnuté zmeny tam boli už pred touto prácou (ThemeStore, `values-night`, fonty, štýly…).
-  Commitovať len na pokyn používateľa.
+- **Git:** všetko je commitnuté na vetve **`lyfta-features`** (commit `03b2e3c` vrátane starších zmien
+  ako ThemeStore, `values-night` a fonty). `main` je stále na `f226d74 Initial commit`. Zlúčenie do `main`
+  ani push zatiaľ neprebehli. Commitovať a pushovať len na pokyn používateľa.
 - **Testovanie na reálnych dátach.** Uloženie cviku v `DayDetailActivity` spustí meranie času tréningu
   (`sessionFirstSetAtMillis` → `WorkoutTimeStore.addMinutes` pri `onPause`). Testovacie uloženie
   tak pripíše minúty k dňu a nahradí odhad kalórií. Po teste treba vrátiť dáta aj zmazať tieto
