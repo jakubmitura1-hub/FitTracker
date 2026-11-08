@@ -4,6 +4,12 @@
     <!-- Len na stiahnutie ilustračných obrázkov cvikov (ExerciseImageCache) — raz stiahnuté sa
          natrvalo ukladajú do interného úložiska appky, appka odvtedy funguje aj offline. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Odpočet pauzy medzi sériami (RestTimer): notifikácia a vibrácia na konci, presný alarm -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Presný koniec pauzy: Android 13+ USE_EXACT_ALARM (udelené pri inštalácii, určené pre budíky/časovače), Android 12 SCHEDULE_EXACT_ALARM -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="true"
@@ -38,6 +44,18 @@
 
         <activity
             android:name=".ExerciseCatalogActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".ExerciseDetailActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".OnboardingActivity"
+            android:exported="false" />
+
+        <receiver
+            android:name=".RestTimerReceiver"
             android:exported="false" />
 
         <activity

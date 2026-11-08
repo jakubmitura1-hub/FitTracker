@@ -2,6 +2,7 @@ package sk.fit.tracker;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
@@ -14,15 +15,18 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 public class ExerciseHistoryActivity extends Activity {
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ThemeStore.wrap(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,7 +49,7 @@ public class ExerciseHistoryActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("🏋️ Progres v cvičeniach");
-        title.setTextColor(getColor(R.color.text_white));
+        title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(19);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         root.addView(title);
@@ -79,7 +83,7 @@ public class ExerciseHistoryActivity extends Activity {
 
         Button btnBack = new Button(this);
         btnBack.setText("← Späť");
-        btnBack.setTextColor(getColor(R.color.text_white));
+        btnBack.setTextColor(getColor(R.color.text_primary));
         btnBack.setBackgroundColor(getColor(R.color.bg_button_neutral));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
@@ -96,7 +100,7 @@ public class ExerciseHistoryActivity extends Activity {
 
         TextView header = new TextView(this);
         header.setText("🏆 Osobné rekordy");
-        header.setTextColor(getColor(R.color.text_white));
+        header.setTextColor(getColor(R.color.text_primary));
         header.setTextSize(15);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
         header.setPadding(0, 0, 0, dp(10));
@@ -132,7 +136,7 @@ public class ExerciseHistoryActivity extends Activity {
             row.addView(tvName);
 
             TextView tvPb = new TextView(this);
-            tvPb.setText(formatKg(weight) + "kg  ·  " + formatNice(date));
+            tvPb.setText(ProgressHero.formatKg(weight) + "kg  ·  " + ProgressHero.formatNice(date));
             tvPb.setTextColor(getColor(R.color.accent_highlight));
             tvPb.setTextSize(12);
             tvPb.setTypeface(null, android.graphics.Typeface.BOLD);
@@ -167,7 +171,7 @@ public class ExerciseHistoryActivity extends Activity {
             int muscleRes = categoryKey != null ? Category.muscleDrawableFor(categoryKey) : 0;
             if (muscleRes != 0) {
                 android.widget.ImageView muscleIcon = new android.widget.ImageView(this);
-                muscleIcon.setImageResource(muscleRes);
+                muscleIcon.setImageDrawable(Category.muscleIcon(this, categoryKey));
                 LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(18), dp(30));
                 iconLp.rightMargin = dp(10);
                 muscleIcon.setLayoutParams(iconLp);
@@ -177,10 +181,18 @@ public class ExerciseHistoryActivity extends Activity {
 
         TextView tvName = new TextView(this);
         tvName.setText(name);
-        tvName.setTextColor(getColor(R.color.text_white));
+        tvName.setTextColor(getColor(R.color.text_primary));
         tvName.setTextSize(15);
         tvName.setTypeface(null, android.graphics.Typeface.BOLD);
+        tvName.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         nameRow.addView(tvName);
+
+        TextView tvDetail = new TextView(this);
+        tvDetail.setText("Detail ›");
+        tvDetail.setTextColor(getColor(R.color.accent_primary));
+        tvDetail.setTextSize(12);
+        nameRow.addView(tvDetail);
+        nameRow.setOnClickListener(v -> startActivity(ExerciseDetailActivity.intent(this, name, false)));
         card.addView(nameRow);
 
         // Typ merania tohto cvičenia — podľa najnovšieho záznamu (chronologicky posledný v zozname).
@@ -227,7 +239,7 @@ public class ExerciseHistoryActivity extends Activity {
             List<String> chartLabels = new ArrayList<>();
             for (Object[] o : entriesChrono) {
                 Exercise ex = (Exercise) o[1];
-                chartLabels.add(formatNice((String) o[0]));
+                chartLabels.add(ProgressHero.formatNice((String) o[0]));
                 if (metricType == MetricType.DURATION) {
                     primaryValues.add((float) ex.maxDurationSeconds());
                 } else if (metricType == MetricType.BODYWEIGHT_AND_REPS) {
@@ -255,7 +267,7 @@ public class ExerciseHistoryActivity extends Activity {
             chart.setData(primaryValues, chartLabels);
             card.addView(chart);
 
-            applyHero(heroValue, heroLabel, trendChip, metricType, false, primaryValues);
+            ProgressHero.apply(this, heroValue, heroLabel, trendChip, metricType, false, primaryValues);
 
             if (metricType == MetricType.WEIGHT_AND_REPS) {
                 boolean[] showingOneRm = {false};
@@ -268,7 +280,7 @@ public class ExerciseHistoryActivity extends Activity {
                         chart.setData(primaryValues, chartLabels);
                         chartToggle.setText("📈 Max váha  (klikni pre odhad. 1RM)");
                     }
-                    applyHero(heroValue, heroLabel, trendChip, metricType, showingOneRm[0],
+                    ProgressHero.apply(this, heroValue, heroLabel, trendChip, metricType, showingOneRm[0],
                             showingOneRm[0] ? oneRmValues : primaryValues);
                 });
             }
@@ -277,7 +289,7 @@ public class ExerciseHistoryActivity extends Activity {
             if (metricType == MetricType.DURATION) single.add((float) latestEx.maxDurationSeconds());
             else if (metricType == MetricType.BODYWEIGHT_AND_REPS) single.add((float) latestEx.maxReps());
             else single.add(latestEx.maxWeight());
-            applyHero(heroValue, heroLabel, trendChip, metricType, false, single);
+            ProgressHero.apply(this, heroValue, heroLabel, trendChip, metricType, false, single);
         }
 
         // Najvyssie max weight pre PB
@@ -312,7 +324,7 @@ public class ExerciseHistoryActivity extends Activity {
             rowHeader.setPadding(0, dp(6), 0, dp(2));
 
             TextView tvDate = new TextView(this);
-            tvDate.setText(formatNice(dateKey));
+            tvDate.setText(ProgressHero.formatNice(dateKey));
             tvDate.setTextColor(isLatest ? getColor(R.color.accent_primary_soft) : getColor(R.color.text_muted));
             tvDate.setTextSize(11);
             tvDate.setTypeface(null, isLatest ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
@@ -478,71 +490,6 @@ public class ExerciseHistoryActivity extends Activity {
         });
 
         dialog.show();
-    }
-
-    private String formatKg(float w) {
-        return (w == Math.floor(w))
-                ? String.format(Locale.getDefault(), "%.0f", w)
-                : String.format(Locale.getDefault(), "%.1f", w);
-    }
-
-    /**
-     * Nastaví hero hodnotu (posledný tréning) a farebný trend chip oproti predchádzajúcemu
-     * tréningu (↑ zlepšenie, ↓ zhoršenie, → rovnako). "series" je chronologická (najnovšie
-     * posledné) a zodpovedá metrike, ktorá je práve zobrazená v grafe (max váha/1RM/opak./výdrž).
-     */
-    private void applyHero(TextView heroValue, TextView heroLabel, TextView trendChip,
-                            MetricType metricType, boolean oneRm, List<Float> series) {
-        float current = series.get(series.size() - 1);
-
-        String valueText;
-        String labelText;
-        if (metricType == MetricType.DURATION) {
-            valueText = SetEntry.formatDuration(Math.round(current));
-            labelText = "Najdlhšia výdrž · posledný tréning";
-        } else if (metricType == MetricType.BODYWEIGHT_AND_REPS) {
-            valueText = Math.round(current) + " opak.";
-            labelText = "Max opakovania · posledný tréning";
-        } else {
-            valueText = formatKg(current) + " kg";
-            labelText = (oneRm ? "Odhad. 1RM" : "Max váha") + " · posledný tréning";
-        }
-        heroValue.setText(valueText);
-        heroLabel.setText(labelText);
-
-        if (series.size() < 2) {
-            trendChip.setVisibility(View.GONE);
-            return;
-        }
-        trendChip.setVisibility(View.VISIBLE);
-        float delta = current - series.get(series.size() - 2);
-        if (Math.abs(delta) < 0.01f) {
-            trendChip.setText("→ rovnako");
-            trendChip.setTextColor(getColor(R.color.text_secondary));
-        } else if (delta > 0) {
-            trendChip.setText("↑ +" + formatDelta(metricType, delta));
-            trendChip.setTextColor(getColor(R.color.accent_primary_soft));
-        } else {
-            trendChip.setText("↓ -" + formatDelta(metricType, -delta));
-            trendChip.setTextColor(getColor(R.color.accent_danger));
-        }
-        trendChip.setBackground(UiKit.roundedBg(this, R.color.bg_chip, UiKit.dimenPx(this, R.dimen.radius_chip)));
-    }
-
-    private String formatDelta(MetricType metricType, float absDelta) {
-        if (metricType == MetricType.DURATION) return SetEntry.formatDuration(Math.round(absDelta));
-        if (metricType == MetricType.BODYWEIGHT_AND_REPS) return Math.round(absDelta) + " opak.";
-        return formatKg(absDelta) + " kg";
-    }
-
-    private String formatNice(String dateKeyStr) {
-        try {
-            SimpleDateFormat parser = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-            SimpleDateFormat display = new SimpleDateFormat("dd.MM.yyyy (EEE)", new Locale("sk", "SK"));
-            return display.format(parser.parse(dateKeyStr));
-        } catch (Exception e) {
-            return dateKeyStr;
-        }
     }
 
     private int dp(int v) {

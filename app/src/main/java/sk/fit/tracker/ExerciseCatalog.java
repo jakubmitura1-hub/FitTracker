@@ -442,6 +442,8 @@ public class ExerciseCatalog {
         if (!trimmedName.equals(entry.name)) {
             ExerciseStore.renameExerciseEverywhere(ctx, entry.name, trimmedName);
             ExerciseNotesStore.rename(ctx, entry.name, trimmedName);
+            FavoritesStore.rename(ctx, entry.name, trimmedName);
+            ExerciseMedia.rename(ctx, entry.name, trimmedName);
         }
         ExerciseNotesStore.setNote(ctx, trimmedName, newNotes);
         return true;

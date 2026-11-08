@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <dimen name="radius_card">14dp</dimen>
-    <dimen name="radius_button">8dp</dimen>
-    <dimen name="radius_chip">6dp</dimen>
-    <dimen name="space_sm">8dp</dimen>
-    <dimen name="space_md">12dp</dimen>
-    <dimen name="space_lg">16dp</dimen>
+    <!-- Radiusy stiahnuté zo 14dp na 4dp — Classical kreslí hranami, nie mäkkými bublinami. -->
+    <dimen name="radius_card">4dp</dimen>
+    <dimen name="radius_button">4dp</dimen>
+    <dimen name="radius_chip">2dp</dimen>
+
+    <!-- Vzdušnejšie rozostupy (density 1.15×) -->
+    <dimen name="space_sm">9dp</dimen>
+    <dimen name="space_md">14dp</dimen>
+    <dimen name="space_lg">18dp</dimen>
+
+    <!-- Nové: hrúbka vlasovej linky, ktorou sa teraz kreslia karty a oddeľovače -->
+    <dimen name="stroke_hairline">1dp</dimen>
 </resources>

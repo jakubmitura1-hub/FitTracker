@@ -1,6 +1,7 @@
 package sk.fit.tracker;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Outline;
 import android.graphics.drawable.GradientDrawable;
@@ -33,6 +34,11 @@ public class MainActivity extends Activity {
             new SimpleDateFormat("LLLL yyyy", new Locale("sk", "SK"));
 
     @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ThemeStore.wrap(newBase));
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -62,8 +68,20 @@ public class MainActivity extends Activity {
         findViewById(R.id.btn_profile).setOnClickListener(v ->
                 startActivity(new Intent(this, ProfileActivity.class)));
 
+        android.widget.Button btnTheme = findViewById(R.id.btn_theme);
+        btnTheme.setText(ThemeStore.isDarkMode(this) ? "☀️" : "🌙");
+        btnTheme.setOnClickListener(v -> {
+            ThemeStore.setDarkMode(this, !ThemeStore.isDarkMode(this));
+            recreate();
+        });
+
         buildLegend();
         renderCalendar();
+
+        // Prvé spustenie: výber partií (raz — po Pokračovať aj Preskočiť sa už neukáže)
+        if (savedInstanceState == null && !FocusStore.isOnboardingDone(this)) {
+            startActivity(OnboardingActivity.intent(this, false));
+        }
     }
 
     @Override
@@ -170,21 +188,28 @@ public class MainActivity extends Activity {
             if (c != null) activeCats.add(c);
         }
 
-        if (activeCats.isEmpty()) {
-            cell.setBackgroundColor(isToday ? getColor(R.color.today_bg) : getColor(R.color.day_cell_bg));
-        } else {
-            LinearLayout stripes = new LinearLayout(this);
-            stripes.setOrientation(LinearLayout.HORIZONTAL);
-            stripes.setLayoutParams(new FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+        // Papierové pozadie bunky + vlasový obrys; farba partie je len 2dp linka naspodku.
+        GradientDrawable cellBg = new GradientDrawable();
+        cellBg.setColor(isToday ? getColor(R.color.today_bg) : getColor(R.color.day_cell_bg));
+        cellBg.setStroke(dp(1), getColor(R.color.separator));
+        cellBg.setCornerRadius(radius);
+        cell.setBackground(cellBg);
+
+        if (!activeCats.isEmpty()) {
+            LinearLayout underline = new LinearLayout(this);
+            underline.setOrientation(LinearLayout.HORIZONTAL);
+            FrameLayout.LayoutParams underlineLp = new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, dp(2));
+            underlineLp.gravity = Gravity.BOTTOM;
+            underline.setLayoutParams(underlineLp);
             for (Category c : activeCats) {
                 View stripe = new View(this);
                 stripe.setLayoutParams(new LinearLayout.LayoutParams(
                         0, LinearLayout.LayoutParams.MATCH_PARENT, 1f));
-                stripe.setBackgroundColor(withAlpha(c.color, isToday ? 190 : 140));
-                stripes.addView(stripe);
+                stripe.setBackgroundColor(c.color);
+                underline.addView(stripe);
             }
-            cell.addView(stripes);
+            cell.addView(underline);
         }
 
         // Streak — dni, ktoré sú súčasťou súvislej tréningovej série (2+ dni po sebe)
@@ -194,7 +219,6 @@ public class MainActivity extends Activity {
         tvDay.setText(String.valueOf(day));
         tvDay.setTextColor(isToday ? getColor(R.color.accent_primary_soft) : getColor(R.color.text_primary));
         tvDay.setTextSize(13);
-        tvDay.setShadowLayer(dp(2), 0, 0, 0xCC000000); // čitateľnosť čísla nad farebným pozadím
         FrameLayout.LayoutParams dayLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT);
         dayLp.gravity = Gravity.CENTER;
@@ -230,8 +254,8 @@ public class MainActivity extends Activity {
                 int muscleRes = Category.muscleDrawableFor(c.key);
                 if (muscleRes == 0) continue;
                 android.widget.ImageView icon = new android.widget.ImageView(this);
-                icon.setImageResource(muscleRes);
-                LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(9), dp(15));
+                icon.setImageDrawable(Category.muscleIcon(this, c.key));
+                LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(12), dp(16));
                 if (shown > 0) iconLp.leftMargin = dp(3);
                 icon.setLayoutParams(iconLp);
                 iconRow.addView(icon);
@@ -258,11 +282,6 @@ public class MainActivity extends Activity {
         });
 
         return cell;
-    }
-
-    /** Nahradí alfa kanál farby (0-255) — na priehľadné farebné pruhy pozadia dňa. */
-    private int withAlpha(int color, int alpha) {
-        return (color & 0x00FFFFFF) | (alpha << 24);
     }
 
     /** Spočíta tréningové dni v aktuálne zobrazenom mesiaci a nastaví motivačný text nad kalendárom. */
@@ -323,16 +342,16 @@ public class MainActivity extends Activity {
             int muscleRes = Category.muscleDrawableFor(c.key);
             if (muscleRes != 0) {
                 android.widget.ImageView diagram = new android.widget.ImageView(this);
-                diagram.setImageResource(muscleRes);
-                LinearLayout.LayoutParams diagramLp = new LinearLayout.LayoutParams(dp(22), dp(36));
+                diagram.setImageDrawable(Category.muscleIcon(this, c.key));
+                LinearLayout.LayoutParams diagramLp = new LinearLayout.LayoutParams(dp(60), dp(80));
                 diagramLp.rightMargin = dp(10);
                 diagram.setLayoutParams(diagramLp);
                 item.addView(diagram);
             } else if ("cardio".equals(c.key)) {
                 TextView emoji = new TextView(this);
                 emoji.setText("🏃");
-                emoji.setTextSize(18);
-                LinearLayout.LayoutParams emojiLp = new LinearLayout.LayoutParams(dp(22), dp(36));
+                emoji.setTextSize(30);
+                LinearLayout.LayoutParams emojiLp = new LinearLayout.LayoutParams(dp(60), dp(80));
                 emojiLp.rightMargin = dp(10);
                 emojiLp.gravity = Gravity.CENTER;
                 emoji.setLayoutParams(emojiLp);

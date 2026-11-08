@@ -32,7 +32,7 @@
               android:layout_width="wrap_content"
               android:layout_height="wrap_content"
               android:text="🏋️ Fit Tracker"
-              android:textColor="@color/text_white"
+              android:textColor="@color/text_primary"
               android:textSize="20sp"
               android:textStyle="bold"
               android:layout_marginBottom="2dp"/>
@@ -45,6 +45,14 @@
               android:textSize="11sp"/>
 
         </LinearLayout>
+
+        <Button
+            android:id="@+id/btn_theme"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginRight="8dp"
+            android:textSize="16sp"
+            android:backgroundTint="@color/bg_button_neutral"/>
 
         <Button
             android:id="@+id/btn_profile"
@@ -97,7 +105,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:text="Máj 2026"
-            android:textColor="@color/text_white"
+            android:textColor="@color/text_primary"
             android:textSize="16sp"
             android:textStyle="bold"/>
 
@@ -146,9 +154,9 @@
         android:layout_weight="1"
         android:layout_marginRight="6dp"
         android:text="▦  Štatistiky"
-        android:textColor="@color/accent_primary_text"
+        android:textColor="@color/accent_primary_dark"
         android:textSize="12sp"
-        android:backgroundTint="@color/accent_primary_dark"/>
+        android:background="@drawable/bg_button_primary"/>
 
     <Button
         android:id="@+id/btn_progress"

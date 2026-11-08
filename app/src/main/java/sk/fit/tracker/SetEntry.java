@@ -7,6 +7,7 @@ import java.util.Locale;
  *  - WEIGHT_AND_REPS: weight × reps × unit (klasika).
  *  - BODYWEIGHT_AND_REPS: reps opakovaní vlastnou váhou, weight = voliteľná PRIDANÁ záťaž v kg (0 = bez záťaže).
  *  - DURATION: durationSeconds trvania; weight/reps sa nepoužívajú.
+ * Pri každom type môže mať séria RPE (subjektívna náročnosť 6–10 po 0,5; 0 = nezadané).
  */
 public class SetEntry {
 
@@ -20,6 +21,10 @@ public class SetEntry {
     public String unit;
     public MetricType metricType;
     public int durationSeconds;
+    /** RPE 6–10 (po 0,5), 0 = nezadané. 10 = do zlyhania, 9 = ešte 1 opakovanie v zásobe, 8 = 2 ... */
+    public float rpe;
+
+    public static final float[] RPE_VALUES = {6f, 6.5f, 7f, 7.5f, 8f, 8.5f, 9f, 9.5f, 10f};
 
     public SetEntry(float weight, int reps) {
         this(weight, reps, DEFAULT_UNIT);
@@ -48,11 +53,13 @@ public class SetEntry {
     }
 
     /**
-     * Formát "váhaXopak:jednotka:metricType:trvanieSekund". Posledné dva segmenty sú
-     * rozšírenie — staré dáta (bez nich, prípadne aj bez jednotky) sa naďalej parsujú identicky.
+     * Formát "váhaXopak:jednotka:metricType:trvanieSekund[:rpe]". Segmenty za jednotkou sú
+     * rozšírenia — staré dáta (bez nich, prípadne aj bez jednotky) sa naďalej parsujú identicky.
+     * RPE sa zapisuje len ak je zadané, takže séria bez RPE má presne pôvodný formát.
      */
     public String serialize() {
-        return weight + "x" + reps + ":" + unit + ":" + metricType.code() + ":" + durationSeconds;
+        String base = weight + "x" + reps + ":" + unit + ":" + metricType.code() + ":" + durationSeconds;
+        return rpe > 0 ? base + ":" + rpe : base;
     }
 
     public static SetEntry parse(String s) {
@@ -70,15 +77,37 @@ public class SetEntry {
             }
         }
 
+        float rpe = 0f;
+        if (segments.length > 4 && !segments[4].isEmpty()) {
+            try {
+                rpe = normalizeRpe(Float.parseFloat(segments[4]));
+            } catch (Exception ignored) {
+                rpe = 0f;
+            }
+        }
+
         String[] parts = core.split("x");
         if (parts.length != 2) return null;
         try {
             float weight = Float.parseFloat(parts[0]);
             int reps = Integer.parseInt(parts[1]);
-            return new SetEntry(weight, reps, unit, metricType, durationSeconds);
+            SetEntry se = new SetEntry(weight, reps, unit, metricType, durationSeconds);
+            se.rpe = rpe;
+            return se;
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /** Zaokrúhli na najbližšiu platnú hodnotu RPE (6–10 po 0,5); mimo rozsahu = 0 (nezadané). */
+    public static float normalizeRpe(float v) {
+        if (v < 5.75f || v > 10.25f) return 0f;
+        return Math.round(v * 2f) / 2f;
+    }
+
+    /** "8" alebo "8,5" — pre zobrazenie. */
+    public static String formatRpe(float rpe) {
+        return formatW(rpe);
     }
 
     /** Krátka značka jednotky pre zobrazenie, napr. "kg", "lbs", "ks (tehličky)". */
@@ -130,20 +159,22 @@ public class SetEntry {
         }
     }
 
+    /** Napr. "40kg×8 @8" — RPE sa pripája len ak je zadané. */
     @Override
     public String toString() {
+        String rpeSuffix = rpe > 0 ? " @" + formatRpe(rpe) : "";
         if (metricType == MetricType.DURATION) {
-            return formatDuration(durationSeconds);
+            return formatDuration(durationSeconds) + rpeSuffix;
         }
         if (metricType == MetricType.BODYWEIGHT_AND_REPS) {
             String load = weight > 0 ? ("+" + formatW(weight) + "kg")
                     : weight < 0 ? (formatW(weight) + "kg asist.")
                     : "VV";
-            return load + "×" + reps;
+            return load + "×" + reps + rpeSuffix;
         }
         String w = formatW(weight);
         String label = UNIT_PLATE.equals(unit) ? " " + unitLabel() : unitLabel();
-        return w + label + "×" + reps;
+        return w + label + "×" + reps + rpeSuffix;
     }
 
     private static String formatW(float w) {

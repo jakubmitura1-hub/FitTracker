@@ -30,6 +30,9 @@ public class BackupManager {
             "FitTrackerExerciseNotes",   // ExerciseNotesStore
             "FitTrackerHiddenDefaults",  // HiddenDefaultsStore
             "FitTrackerWorkoutFeeling",  // WorkoutFeelingStore
+            "FitTrackerFavorites",       // FavoritesStore — obľúbené cviky
+            "FitTrackerMediaAliases",    // ExerciseMedia — premenované cviky -> pôvodný záznam s fotkou
+            "FitTrackerFocus",           // FocusStore — partie z onboardingu
     };
 
     private BackupManager() {}
@@ -71,6 +74,13 @@ public class BackupManager {
                     case "l": editor.putLong(key, typed.getLong("v")); break;
                     case "i": editor.putInt(key, typed.getInt("v")); break;
                     case "b": editor.putBoolean(key, typed.getBoolean("v")); break;
+                    case "ss": {
+                        org.json.JSONArray arr = typed.getJSONArray("v");
+                        java.util.Set<String> set = new java.util.HashSet<>();
+                        for (int i = 0; i < arr.length(); i++) set.add(arr.getString(i));
+                        editor.putStringSet(key, set);
+                        break;
+                    }
                     default:  editor.putString(key, typed.getString("v")); break;
                 }
             }
@@ -96,8 +106,13 @@ public class BackupManager {
         } else if (value instanceof String) {
             typed.put("t", "s");
             typed.put("v", value);
+        } else if (value instanceof java.util.Set) {
+            typed.put("t", "ss");
+            org.json.JSONArray arr = new org.json.JSONArray();
+            for (Object o : (java.util.Set<?>) value) arr.put(String.valueOf(o));
+            typed.put("v", arr);
         } else {
-            return null; // neznámy typ (napr. StringSet) — appka ho nikde nepoužíva
+            return null; // neznámy typ
         }
         return typed;
     }

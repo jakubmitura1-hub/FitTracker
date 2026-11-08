@@ -17,3 +17,4 @@ local.properties
 *.aab
 *.keystore
 *.jks
+.claude/skills/run-fittracker/out/

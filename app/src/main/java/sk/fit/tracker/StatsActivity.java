@@ -1,6 +1,7 @@
 package sk.fit.tracker;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -12,13 +13,21 @@ import android.widget.TextView;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 public class StatsActivity extends Activity {
 
     private static final int WEEKS_SHOWN = 8;
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ThemeStore.wrap(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,7 +51,7 @@ public class StatsActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("📊 Štatistiky");
-        title.setTextColor(getColor(R.color.text_white));
+        title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(19);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         root.addView(title);
@@ -53,6 +62,9 @@ public class StatsActivity extends Activity {
         subtitle.setTextSize(12);
         subtitle.setPadding(0, dp(2), 0, dp(18));
         root.addView(subtitle);
+
+        root.addView(UiKit.sectionHeader(this, "🧍 Svaly za posledný týždeň"));
+        root.addView(buildMuscleMapCard());
 
         List<Category> cats = Category.all();
 
@@ -66,7 +78,7 @@ public class StatsActivity extends Activity {
 
         Button btnBack = new Button(this);
         btnBack.setText("← Späť");
-        btnBack.setTextColor(getColor(R.color.text_white));
+        btnBack.setTextColor(getColor(R.color.text_primary));
         btnBack.setBackgroundColor(getColor(R.color.bg_button_neutral));
         LinearLayout.LayoutParams btnLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
@@ -97,7 +109,7 @@ public class StatsActivity extends Activity {
 
         TextView label = new TextView(this);
         label.setText(c.label);
-        label.setTextColor(getColor(R.color.text_white));
+        label.setTextColor(getColor(R.color.text_primary));
         label.setTextSize(14);
         label.setTypeface(null, android.graphics.Typeface.BOLD);
         label.setLayoutParams(new LinearLayout.LayoutParams(
@@ -182,6 +194,86 @@ public class StatsActivity extends Activity {
         }
 
         return card;
+    }
+
+    /**
+     * Anatomická mapa: červené = svaly precvičené za posledné 3 dni (ešte regenerujú),
+     * modré = precvičené pred 3–6 dňami. Ostatné sú za posledný týždeň netrénované.
+     */
+    private View buildMuscleMapCard() {
+        Set<String> recent = new HashSet<>();
+        Set<String> earlier = new HashSet<>();
+        for (Map.Entry<String, Set<String>> e : ActivityStore.getAllEntries(this).entrySet()) {
+            int ds = ActivityStore.daysSince(e.getKey());
+            if (ds < 0 || ds >= 7) continue;
+            for (String cat : e.getValue()) {
+                (ds < 3 ? recent : earlier).addAll(MuscleMapView.musclesForCategory(cat));
+            }
+        }
+
+        LinearLayout card = UiKit.card(this);
+
+        MuscleMapView map = new MuscleMapView(this);
+        map.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        map.setPadding(dp(24), dp(8), dp(24), 0);
+        map.setMuscles(recent, earlier);
+        card.addView(map);
+
+        LinearLayout legend = new LinearLayout(this);
+        legend.setOrientation(LinearLayout.HORIZONTAL);
+        legend.setGravity(Gravity.CENTER);
+        legend.setPadding(0, dp(4), 0, 0);
+        legend.addView(buildLegendItem(R.color.muscle_highlight, "posledné 3 dni"));
+        legend.addView(buildLegendItem(R.color.muscle_secondary, "pred 3–6 dňami"));
+        card.addView(legend);
+
+        // Fokus z onboardingu: ktoré z vybraných partií tento týždeň ešte nedostali tréning
+        Set<String> focus = FocusStore.getMuscles(this);
+        if (!focus.isEmpty()) {
+            Set<String> untrained = new HashSet<>(focus);
+            untrained.removeAll(recent);
+            untrained.removeAll(earlier);
+            TextView tvFocus = new TextView(this);
+            tvFocus.setTextSize(12);
+            tvFocus.setGravity(Gravity.CENTER);
+            tvFocus.setPadding(0, dp(8), 0, 0);
+            if (untrained.isEmpty()) {
+                tvFocus.setText("🎯 Celý tvoj fokus (" + FocusStore.describe(focus) + ") má tento týždeň odcvičené 💪");
+                tvFocus.setTextColor(getColor(R.color.accent_primary_soft));
+            } else {
+                tvFocus.setText("🎯 Z tvojho fokusu tento týždeň chýba: " + FocusStore.describe(untrained));
+                tvFocus.setTextColor(getColor(R.color.text_secondary));
+            }
+            card.addView(tvFocus);
+        }
+
+        return card;
+    }
+
+    private View buildLegendItem(int colorRes, String text) {
+        LinearLayout item = new LinearLayout(this);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setGravity(Gravity.CENTER_VERTICAL);
+        item.setPadding(dp(8), 0, dp(8), 0);
+
+        View dot = new View(this);
+        int size = dp(9);
+        LinearLayout.LayoutParams dotLp = new LinearLayout.LayoutParams(size, size);
+        dotLp.rightMargin = dp(6);
+        dot.setLayoutParams(dotLp);
+        GradientDrawable dotBg = new GradientDrawable();
+        dotBg.setShape(GradientDrawable.OVAL);
+        dotBg.setColor(getColor(colorRes));
+        dot.setBackground(dotBg);
+        item.addView(dot);
+
+        TextView tv = new TextView(this);
+        tv.setText(text);
+        tv.setTextColor(getColor(R.color.text_secondary));
+        tv.setTextSize(11);
+        item.addView(tv);
+        return item;
     }
 
     private float sumRecentVolume(String categoryKey, int days) {

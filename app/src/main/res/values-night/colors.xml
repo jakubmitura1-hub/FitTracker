@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tmavá obdoba editoriálnej (Classical) palety: atramentové pozadie, zlatá ako obrys.
+         Rovnaké názvy ako values/colors.xml — appka prepne farby automaticky podľa
+         systémového tmavého režimu (Theme.FitTracker dedí z ...DayNight...). -->
+
+    <!-- Pozadia -->
+    <color name="bg_app">#1C1B19</color>
+    <color name="bg_card">#26241F</color>
+    <color name="bg_card_alt">#302D27</color>
+    <color name="bg_hint">#3D2E15</color>
+    <color name="bg_chip">#302D27</color>
+    <color name="bg_input">#26241F</color>
+    <color name="bg_button_neutral">#302D27</color>
+
+    <!-- Text -->
+    <color name="text_primary">#F0ECE6</color>
+    <color name="text_secondary">#C7C0B6</color>
+    <color name="text_muted">#948C81</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_on_accent">#2A1B08</color>
+
+    <!-- Hlavný akcent (zlatá) — svetlejšia, aby čitala na tmavom podklade -->
+    <color name="accent_primary">#D8A552</color>
+    <color name="accent_primary_dark">#F0C67E</color>
+    <color name="accent_primary_soft">#C79B5D</color>
+    <color name="accent_primary_text">#F0C67E</color>
+
+    <!-- Sekundárny akcent (tlačidlo Progres) — na tmavom podklade tichá tmavšia plocha -->
+    <color name="accent_secondary">#35322C</color>
+
+    <!-- Zvýraznenie (osobné rekordy) -->
+    <color name="accent_highlight">#E3A23D</color>
+
+    <!-- Nebezpečenstvo / zmazanie — zosvetlené ako text, tlačidlá zostávajú rovnako tmavé -->
+    <color name="accent_danger">#E2665C</color>
+    <color name="accent_danger_dark">#6E2A25</color>
+    <color name="accent_danger_darker">#4A1C18</color>
+
+    <!-- Kalendár -->
+    <color name="today_bg">#40300A</color>
+    <color name="today_stroke">#D8A552</color>
+    <color name="day_cell_bg">#26241F</color>
+
+    <!-- Ostatné -->
+    <color name="separator">#46423B</color>
+    <color name="input_border">#5C574C</color>
+
+    <!-- Diagramy svalových partií — rovnaké v oboch režimoch, nemeníme. -->
+    <color name="muscle_neutral">#4A4438</color>
+    <color name="muscle_highlight">#E0503F</color>
+
+    <!-- Veľká anatomická mapa (MuscleMapView) — pomocný sval (hlavný = muscle_highlight). -->
+    <color name="muscle_secondary">#4F86E0</color>
+</resources>

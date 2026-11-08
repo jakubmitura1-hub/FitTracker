@@ -2,16 +2,22 @@ package sk.fit.tracker;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.View;
-import android.widget.AdapterView;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
+import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
+import android.widget.GridView;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -21,6 +27,7 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Prehľad, vyhľadávanie/filtrovanie, úprava a mazanie VŠETKÝCH cvikov v katalógu — zabudovaných
@@ -28,14 +35,29 @@ import java.util.List;
  * série v histórii (tie sú viazané len na text názvu v ExerciseStore, nie na katalógový záznam) —
  * pri oprave preklepu v názve sa ale história prepíše na nové meno (cez ExerciseMerger/
  * ExerciseStore.renameExerciseEverywhere), aby sa progres cviku nerozdelil na dve mená.
+ *
+ * Cviky sú zobrazené ako mriežka kariet s fotkou (ExerciseMedia / free-exercise-db), filtrom
+ * podľa partie a obľúbenými (FavoritesStore). Ťuk na kartu otvorí ExerciseDetailActivity.
  */
 public class ExerciseCatalogActivity extends Activity {
 
     private static final String ALL_CATEGORIES = "__all__";
+    private static final String FAVORITES = "__favorites__";
+    private static final String FOCUS = "__focus__";
 
-    private LinearLayout listContainer;
+    private final List<ExerciseCatalog.CatalogEntry> visibleEntries = new ArrayList<>();
+    private final CatalogAdapter adapter = new CatalogAdapter();
+    private LinearLayout chipRow;
+    private TextView emptyView;
     private String searchQuery = "";
-    private String selectedCategoryKey = ALL_CATEGORIES;
+    private String selectedFilterKey = ALL_CATEGORIES;
+
+    private static final int REQ_DETAIL = 1;
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ThemeStore.wrap(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,18 +70,18 @@ public class ExerciseCatalogActivity extends Activity {
 
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(16), dp(16), dp(16), dp(8));
+        header.setPadding(dp(16), dp(16), dp(16), dp(4));
         outer.addView(header);
 
         TextView title = new TextView(this);
         title.setText("📖 Katalóg cvikov");
-        title.setTextColor(getColor(R.color.text_white));
+        title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(19);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         header.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Vyhľadaj, filtruj podľa partie, uprav alebo zmaž cvik z ponuky. História odtrénovaných sérií sa tým nestratí.");
+        subtitle.setText("Ťukni na cvik pre detail, svaly, históriu a progres. ☆ ho pridá medzi obľúbené.");
         subtitle.setTextColor(getColor(R.color.text_muted));
         subtitle.setTextSize(12);
         subtitle.setPadding(0, dp(2), 0, dp(12));
@@ -77,39 +99,49 @@ public class ExerciseCatalogActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         header.addView(etSearch);
 
-        List<String> categoryFilterKeys = new ArrayList<>();
-        List<String> categoryFilterLabels = new ArrayList<>();
-        categoryFilterKeys.add(ALL_CATEGORIES);
-        categoryFilterLabels.add("Všetky partie");
+        // Filter partií ako chipy vo vodorovne rolovateľnom riadku
+        HorizontalScrollView chipScroll = new HorizontalScrollView(this);
+        chipScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout.LayoutParams chipScrollLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        chipScrollLp.topMargin = dp(10);
+        chipScroll.setLayoutParams(chipScrollLp);
+        chipRow = new LinearLayout(this);
+        chipRow.setOrientation(LinearLayout.HORIZONTAL);
+        chipScroll.addView(chipRow);
+        header.addView(chipScroll);
+
+        addFilterChip(ALL_CATEGORIES, "Všetky");
+        addFilterChip(FAVORITES, "★ Obľúbené");
+        if (!FocusStore.getMuscles(this).isEmpty()) addFilterChip(FOCUS, "🎯 Fokus");
         for (Category c : Category.all()) {
             if (!Category.GROUP_WORKOUT.equals(c.group) || "cardio".equals(c.key)) continue;
-            categoryFilterKeys.add(c.key);
-            categoryFilterLabels.add(c.label);
+            addFilterChip(c.key, c.label);
         }
+        refreshChipStyles();
 
-        Spinner categorySpinner = new Spinner(this);
-        ArrayAdapter<String> categoryAdapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, categoryFilterLabels);
-        categoryAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        categorySpinner.setAdapter(categoryAdapter);
-        categorySpinner.setBackground(UiKit.roundedBgWithBorder(
-                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_chip)));
-        categorySpinner.setPadding(dp(8), dp(4), dp(8), dp(4));
-        LinearLayout.LayoutParams spinnerLp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        spinnerLp.topMargin = dp(8);
-        categorySpinner.setLayoutParams(spinnerLp);
-        header.addView(categorySpinner);
+        emptyView = new TextView(this);
+        emptyView.setTextColor(getColor(R.color.text_muted));
+        emptyView.setTextSize(13);
+        emptyView.setPadding(dp(16), dp(12), dp(16), dp(8));
+        emptyView.setVisibility(View.GONE);
+        outer.addView(emptyView);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setLayoutParams(new LinearLayout.LayoutParams(
+        // GridView recykluje karty — pri ~100 cvikoch s fotkami by obyčajný ScrollView držal všetky naraz
+        GridView grid = new GridView(this);
+        grid.setNumColumns(2);
+        grid.setHorizontalSpacing(dp(10));
+        grid.setVerticalSpacing(dp(10));
+        grid.setStretchMode(GridView.STRETCH_COLUMN_WIDTH);
+        grid.setPadding(dp(16), dp(8), dp(16), dp(16));
+        grid.setClipToPadding(false);
+        grid.setSelector(android.R.color.transparent);
+        grid.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
-        outer.addView(scroll);
-
-        listContainer = new LinearLayout(this);
-        listContainer.setOrientation(LinearLayout.VERTICAL);
-        listContainer.setPadding(dp(16), dp(4), dp(16), dp(16));
-        scroll.addView(listContainer);
+        grid.setAdapter(adapter);
+        grid.setOnItemClickListener((parent, view, position, id) -> startActivityForResult(
+                ExerciseDetailActivity.intent(this, visibleEntries.get(position).name, true), REQ_DETAIL));
+        outer.addView(grid);
 
         etSearch.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -120,17 +152,9 @@ public class ExerciseCatalogActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {}
         });
 
-        categorySpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                selectedCategoryKey = categoryFilterKeys.get(position);
-                renderList();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
         Button btnBack = new Button(this);
         btnBack.setText("← Späť");
-        btnBack.setTextColor(getColor(R.color.text_white));
+        btnBack.setTextColor(getColor(R.color.text_primary));
         btnBack.setBackgroundColor(getColor(R.color.bg_button_neutral));
         LinearLayout.LayoutParams backLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
@@ -142,120 +166,187 @@ public class ExerciseCatalogActivity extends Activity {
         renderList();
     }
 
-    private void renderList() {
-        listContainer.removeAllViews();
-
-        String normalizedQuery = ExerciseDefinition.normalize(searchQuery);
-        List<ExerciseCatalog.CatalogEntry> all = ExerciseCatalog.getAllEntries(this);
-        List<ExerciseCatalog.CatalogEntry> filtered = new ArrayList<>();
-        for (ExerciseCatalog.CatalogEntry e : all) {
-            if (!ALL_CATEGORIES.equals(selectedCategoryKey) && !e.categoryKey.equals(selectedCategoryKey)) continue;
-            if (!normalizedQuery.isEmpty() && !ExerciseDefinition.normalize(e.name).contains(normalizedQuery)) continue;
-            filtered.add(e);
-        }
-
-        if (filtered.isEmpty()) {
-            TextView empty = new TextView(this);
-            empty.setText("Žiadny cvik nezodpovedá filtru.");
-            empty.setTextColor(getColor(R.color.text_muted));
-            empty.setTextSize(13);
-            empty.setPadding(0, dp(8), 0, dp(8));
-            listContainer.addView(empty);
+    /** Návrat z detailu cviku: obnoví hviezdičky a vykoná prípadnú úpravu/zmazanie vyžiadanú z detailu. */
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, android.content.Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQ_DETAIL) return;
+        renderList();
+        if (resultCode != RESULT_OK || data == null) return;
+        String name = data.getStringExtra(ExerciseDetailActivity.EXTRA_NAME);
+        String action = data.getStringExtra(ExerciseDetailActivity.EXTRA_ACTION);
+        for (ExerciseCatalog.CatalogEntry e : ExerciseCatalog.getAllEntries(this)) {
+            if (!e.name.equals(name)) continue;
+            if (ExerciseDetailActivity.ACTION_EDIT.equals(action)) showEditDialog(e);
+            else if (ExerciseDetailActivity.ACTION_DELETE.equals(action)) confirmDelete(e);
             return;
         }
-
-        for (ExerciseCatalog.CatalogEntry entry : filtered) {
-            listContainer.addView(buildEntryRow(entry));
-        }
     }
 
-    private LinearLayout buildEntryRow(ExerciseCatalog.CatalogEntry entry) {
-        LinearLayout card = UiKit.card(this);
-
-        LinearLayout topRow = new LinearLayout(this);
-        topRow.setOrientation(LinearLayout.HORIZONTAL);
-        topRow.setGravity(Gravity.CENTER_VERTICAL);
-
-        int muscleRes = Category.muscleDrawableFor(entry.categoryKey);
-        if (muscleRes != 0) {
-            ImageView icon = new ImageView(this);
-            icon.setImageResource(muscleRes);
-            LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(16), dp(26));
-            iconLp.rightMargin = dp(10);
-            icon.setLayoutParams(iconLp);
-            topRow.addView(icon);
-        }
-
-        LinearLayout textCol = new LinearLayout(this);
-        textCol.setOrientation(LinearLayout.VERTICAL);
-        textCol.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-
-        TextView tvName = new TextView(this);
-        tvName.setText(entry.name);
-        tvName.setTextColor(getColor(R.color.text_primary));
-        tvName.setTextSize(14);
-        tvName.setTypeface(null, android.graphics.Typeface.BOLD);
-        textCol.addView(tvName);
-
-        Category cat = Category.byKey(entry.categoryKey);
-        TextView tvMeta = new TextView(this);
-        tvMeta.setText((cat != null ? cat.label : entry.categoryKey) + " · " + metricTypeLabel(entry.metricType)
-                + (entry.isDefault ? " · predvolený" : " · vlastný"));
-        tvMeta.setTextColor(getColor(R.color.text_muted));
-        tvMeta.setTextSize(11);
-        textCol.addView(tvMeta);
-
-        if (entry.notes != null && !entry.notes.isEmpty()) {
-            TextView tvNotes = new TextView(this);
-            tvNotes.setText("📝 " + entry.notes);
-            tvNotes.setTextColor(getColor(R.color.text_secondary));
-            tvNotes.setTextSize(11);
-            tvNotes.setPadding(0, dp(3), 0, 0);
-            textCol.addView(tvNotes);
-        }
-
-        topRow.addView(textCol);
-        card.addView(topRow);
-
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        btnRow.setPadding(0, dp(8), 0, 0);
-
-        TextView btnEdit = new TextView(this);
-        btnEdit.setText("✎ Upraviť");
-        btnEdit.setTextColor(getColor(R.color.text_on_accent));
-        btnEdit.setTextSize(12);
-        btnEdit.setTypeface(null, android.graphics.Typeface.BOLD);
-        btnEdit.setGravity(Gravity.CENTER);
-        btnEdit.setPadding(dp(12), dp(8), dp(12), dp(8));
-        btnEdit.setBackground(UiKit.roundedBg(this, R.color.accent_primary, UiKit.dimenPx(this, R.dimen.radius_button)));
-        btnEdit.setOnClickListener(v -> showEditDialog(entry));
-        btnRow.addView(btnEdit);
-
-        TextView btnDelete = new TextView(this);
-        btnDelete.setText("✕ Zmazať");
-        btnDelete.setTextColor(getColor(R.color.text_white));
-        btnDelete.setTextSize(12);
-        btnDelete.setTypeface(null, android.graphics.Typeface.BOLD);
-        btnDelete.setGravity(Gravity.CENTER);
-        btnDelete.setPadding(dp(12), dp(8), dp(12), dp(8));
-        btnDelete.setBackground(UiKit.roundedBg(this, R.color.accent_danger_dark, UiKit.dimenPx(this, R.dimen.radius_button)));
-        LinearLayout.LayoutParams delLp = new LinearLayout.LayoutParams(
+    private void addFilterChip(String key, String label) {
+        TextView chip = new TextView(this);
+        chip.setText(label);
+        chip.setTag(key);
+        chip.setTextSize(12);
+        chip.setPadding(dp(12), dp(7), dp(12), dp(7));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        delLp.leftMargin = dp(10);
-        btnDelete.setLayoutParams(delLp);
-        btnDelete.setOnClickListener(v -> confirmDelete(entry));
-        btnRow.addView(btnDelete);
-
-        card.addView(btnRow);
-        return card;
+        lp.rightMargin = dp(6);
+        chip.setLayoutParams(lp);
+        chip.setOnClickListener(v -> {
+            selectedFilterKey = key;
+            refreshChipStyles();
+            renderList();
+        });
+        chipRow.addView(chip);
     }
 
-    private String metricTypeLabel(MetricType type) {
-        switch (type) {
-            case BODYWEIGHT_AND_REPS: return "vlastná váha";
-            case DURATION: return "časový";
-            default: return "váha × opak.";
+    private void refreshChipStyles() {
+        int radius = UiKit.dimenPx(this, R.dimen.radius_chip);
+        for (int i = 0; i < chipRow.getChildCount(); i++) {
+            TextView chip = (TextView) chipRow.getChildAt(i);
+            boolean selected = selectedFilterKey.equals(chip.getTag());
+            chip.setBackground(selected
+                    ? UiKit.roundedBgWithBorder(this, R.color.accent_primary_soft, R.color.accent_primary, dp(1), radius)
+                    : UiKit.roundedBgWithBorder(this, R.color.bg_chip, R.color.separator, dp(1), radius));
+            chip.setTextColor(getColor(selected ? R.color.text_on_accent : R.color.text_secondary));
+            chip.setTypeface(null, selected ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        }
+    }
+
+    private void renderList() {
+        String normalizedQuery = ExerciseDefinition.normalize(searchQuery);
+        Set<String> favorites = FavoritesStore.getAll(this);
+        Set<String> focus = FocusStore.getMuscles(this);
+        visibleEntries.clear();
+        for (ExerciseCatalog.CatalogEntry e : ExerciseCatalog.getAllEntries(this)) {
+            if (FAVORITES.equals(selectedFilterKey)) {
+                if (!favorites.contains(e.name)) continue;
+            } else if (FOCUS.equals(selectedFilterKey)) {
+                if (!targetsFocus(e, focus)) continue;
+            } else if (!ALL_CATEGORIES.equals(selectedFilterKey) && !e.categoryKey.equals(selectedFilterKey)) {
+                continue;
+            }
+            if (!normalizedQuery.isEmpty() && !ExerciseDefinition.normalize(e.name).contains(normalizedQuery)) continue;
+            visibleEntries.add(e);
+        }
+        adapter.notifyDataSetChanged();
+
+        if (visibleEntries.isEmpty()) {
+            emptyView.setText(FAVORITES.equals(selectedFilterKey) && normalizedQuery.isEmpty()
+                    ? "Zatiaľ nemáš obľúbené cviky — označ ich hviezdičkou ☆ na karte."
+                    : "Žiadny cvik nezodpovedá filtru.");
+            emptyView.setVisibility(View.VISIBLE);
+        } else {
+            emptyView.setVisibility(View.GONE);
+        }
+    }
+
+    /** Cvik patrí do fokusu, ak jeho hlavný sval (z ExerciseMedia, inak podľa partie) je medzi vybranými. */
+    private boolean targetsFocus(ExerciseCatalog.CatalogEntry e, Set<String> focus) {
+        ExerciseMedia.Info media = ExerciseMedia.get(this, e.name);
+        List<String> primary = media != null && !media.primaryMuscles.isEmpty()
+                ? media.primaryMuscles : MuscleMapView.musclesForCategory(e.categoryKey);
+        for (String m : primary) {
+            if (focus.contains(m)) return true;
+        }
+        return false;
+    }
+
+    /** Karta v mriežke: fotka cviku (alebo silueta partie), hviezdička, názov a partia. */
+    private class CatalogAdapter extends BaseAdapter {
+
+        private class Holder {
+            ImageView image;
+            TextView star;
+            TextView name;
+            TextView meta;
+        }
+
+        @Override public int getCount() { return visibleEntries.size(); }
+        @Override public Object getItem(int position) { return visibleEntries.get(position); }
+        @Override public long getItemId(int position) { return position; }
+
+        @Override
+        public View getView(int position, View convertView, ViewGroup parent) {
+            View card = convertView;
+            Holder h;
+            if (card == null) {
+                h = new Holder();
+                card = buildCardView(h);
+                card.setTag(h);
+            } else {
+                h = (Holder) card.getTag();
+            }
+            bindCard(h, visibleEntries.get(position));
+            return card;
+        }
+
+        private View buildCardView(Holder h) {
+            Context ctx = ExerciseCatalogActivity.this;
+            LinearLayout card = new LinearLayout(ctx);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setBackground(UiKit.roundedBgWithBorder(ctx, R.color.bg_card, R.color.separator,
+                    dp(1), UiKit.dimenPx(ctx, R.dimen.radius_card)));
+
+            FrameLayout imageBox = new FrameLayout(ctx);
+            imageBox.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(118)));
+            card.addView(imageBox);
+
+            h.image = new ImageView(ctx);
+            h.image.setBackgroundColor(getColor(R.color.bg_card_alt));
+            h.image.setLayoutParams(new FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+            imageBox.addView(h.image);
+
+            h.star = new TextView(ctx);
+            h.star.setTextSize(17);
+            h.star.setGravity(Gravity.CENTER);
+            h.star.setBackground(UiKit.roundedBg(ctx, R.color.bg_card, dp(15)));
+            FrameLayout.LayoutParams starLp = new FrameLayout.LayoutParams(dp(30), dp(30), Gravity.TOP | Gravity.END);
+            starLp.setMargins(0, dp(6), dp(6), 0);
+            h.star.setLayoutParams(starLp);
+            imageBox.addView(h.star);
+
+            h.name = new TextView(ctx);
+            h.name.setTextColor(getColor(R.color.text_primary));
+            h.name.setTextSize(13);
+            h.name.setTypeface(null, android.graphics.Typeface.BOLD);
+            h.name.setMaxLines(2);
+            h.name.setMinLines(2);
+            h.name.setEllipsize(TextUtils.TruncateAt.END);
+            h.name.setPadding(dp(10), dp(8), dp(10), 0);
+            card.addView(h.name);
+
+            h.meta = new TextView(ctx);
+            h.meta.setTextColor(getColor(R.color.text_muted));
+            h.meta.setTextSize(11);
+            h.meta.setSingleLine(true);
+            h.meta.setEllipsize(TextUtils.TruncateAt.END);
+            h.meta.setPadding(dp(10), dp(2), dp(10), dp(10));
+            card.addView(h.meta);
+            return card;
+        }
+
+        private void bindCard(Holder h, ExerciseCatalog.CatalogEntry entry) {
+            ExerciseMedia.bindPhoto(ExerciseCatalogActivity.this, h.image, entry.name, entry.categoryKey, 0);
+
+            boolean fav = FavoritesStore.isFavorite(ExerciseCatalogActivity.this, entry.name);
+            h.star.setText(fav ? "★" : "☆");
+            h.star.setTextColor(getColor(fav ? R.color.accent_primary : R.color.text_muted));
+            h.star.setOnClickListener(v -> {
+                FavoritesStore.toggle(ExerciseCatalogActivity.this, entry.name);
+                if (FAVORITES.equals(selectedFilterKey)) renderList();
+                else notifyDataSetChanged();
+            });
+
+            h.name.setText(entry.name);
+            Category cat = Category.byKey(entry.categoryKey);
+            String meta = cat != null ? cat.label : entry.categoryKey;
+            if (!entry.isDefault) meta += " · vlastný";
+            if (entry.notes != null && !entry.notes.isEmpty()) meta += " · 📝";
+            h.meta.setText(meta);
         }
     }
 

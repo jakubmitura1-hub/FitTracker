@@ -118,6 +118,19 @@ public class Exercise {
         return best1RM;
     }
 
+    /** Priemerné RPE zo sérií, kde je zadané; 0 = žiadna séria nemá RPE. */
+    public float averageRpe() {
+        float sum = 0;
+        int n = 0;
+        for (SetEntry s : sets) {
+            if (s.rpe > 0) {
+                sum += s.rpe;
+                n++;
+            }
+        }
+        return n == 0 ? 0 : sum / n;
+    }
+
     /** Najvyšší počet opakovaní spomedzi všetkých sérií — použité pre grafy cvikov s vlastnou váhou. */
     public int maxReps() {
         int max = 0;

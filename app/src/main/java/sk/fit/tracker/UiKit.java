@@ -25,7 +25,10 @@ public class UiKit {
     public static LinearLayout card(Context ctx) {
         LinearLayout card = new LinearLayout(ctx);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setBackground(roundedBg(ctx, R.color.bg_card, dimenPx(ctx, R.dimen.radius_card)));
+        card.setBackground(roundedBgWithBorder(
+                ctx, R.color.bg_card, R.color.separator,
+                dimenPx(ctx, R.dimen.stroke_hairline),
+                dimenPx(ctx, R.dimen.radius_card)));
         int padH = dp(ctx, 14);
         int padV = dp(ctx, 12);
         card.setPadding(padH, padV, padH, padV);
@@ -54,9 +57,11 @@ public class UiKit {
     public static TextView sectionHeader(Context ctx, String text) {
         TextView tv = new TextView(ctx);
         tv.setText(text);
-        tv.setTextColor(ctx.getColor(R.color.text_primary));
-        tv.setTextSize(13);
-        tv.setTypeface(null, android.graphics.Typeface.BOLD);
+        tv.setTextColor(ctx.getColor(R.color.text_secondary));
+        tv.setTextSize(10);
+        tv.setTypeface(ctx.getResources().getFont(R.font.lora));
+        tv.setLetterSpacing(0.14f);
+        tv.setAllCaps(true);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(ctx, 10);

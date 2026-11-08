@@ -2,6 +2,7 @@ package sk.fit.tracker;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -89,6 +90,11 @@ public class DayDetailActivity extends Activity {
     }
 
     @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ThemeStore.wrap(newBase));
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -118,7 +124,7 @@ public class DayDetailActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText(formatDateNice(dateKey));
-        title.setTextColor(getColor(R.color.text_white));
+        title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(19);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         title.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -183,11 +189,21 @@ public class DayDetailActivity extends Activity {
             }
         }
 
+        // Odpočet pauzy medzi sériami — len pri dnešnom tréningu, pripnutý nad Uložiť
+        if (isToday) {
+            RestTimerBar restBar = new RestTimerBar(this);
+            LinearLayout.LayoutParams restLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            restLp.setMargins(dp(16), dp(8), dp(16), 0);
+            restBar.setLayoutParams(restLp);
+            outer.addView(restBar);
+        }
+
         // Jedno tlačidlo Uložiť (kategórie) — mimo ScrollView, pripnuté k spodku obrazovky
         Button btnSave = new Button(this);
         btnSave.setText("✔ Uložiť a zavrieť");
-        btnSave.setTextColor(getColor(R.color.accent_primary_text));
-        btnSave.setBackgroundColor(getColor(R.color.accent_primary_dark));
+        btnSave.setTextColor(getColor(R.color.accent_primary_dark));
+        btnSave.setBackgroundResource(R.drawable.bg_button_primary);
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
         saveLp.setMargins(dp(16), dp(10), dp(16), dp(16));
@@ -206,7 +222,7 @@ public class DayDetailActivity extends Activity {
 
         TextView header = new TextView(this);
         header.setText("📋 Zhrnutie dňa");
-        header.setTextColor(getColor(R.color.text_white));
+        header.setTextColor(getColor(R.color.text_primary));
         header.setTextSize(14);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
         header.setPadding(0, 0, 0, dp(8));
@@ -238,7 +254,7 @@ public class DayDetailActivity extends Activity {
 
         TextView header = new TextView(this);
         header.setText("🩺 Ako si sa cítil(a)");
-        header.setTextColor(getColor(R.color.text_white));
+        header.setTextColor(getColor(R.color.text_primary));
         header.setTextSize(14);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
         header.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
@@ -285,7 +301,7 @@ public class DayDetailActivity extends Activity {
 
         TextView header = new TextView(this);
         header.setText("🔥 Spálené kalórie");
-        header.setTextColor(getColor(R.color.text_white));
+        header.setTextColor(getColor(R.color.text_primary));
         header.setTextSize(14);
         header.setTypeface(null, android.graphics.Typeface.BOLD);
         header.setPadding(0, 0, 0, dp(8));
@@ -437,7 +453,7 @@ public class DayDetailActivity extends Activity {
             int muscleRes = Category.muscleDrawableFor(c.key);
             if (muscleRes != 0) {
                 ImageView muscleIcon = new ImageView(this);
-                muscleIcon.setImageResource(muscleRes);
+                muscleIcon.setImageDrawable(Category.muscleIcon(this, c.key));
                 LinearLayout.LayoutParams muscleLp = new LinearLayout.LayoutParams(dp(13), dp(21));
                 muscleLp.rightMargin = dp(6);
                 muscleIcon.setLayoutParams(muscleLp);
@@ -623,12 +639,12 @@ public class DayDetailActivity extends Activity {
             // Upraviť — zelené tlačidlo s vlastným pozadím (nie len text), aby malo poriadny dotykový cieľ
             TextView btnEdit = new TextView(this);
             btnEdit.setText("✎ Upraviť");
-            btnEdit.setTextColor(getColor(R.color.text_on_accent));
+            btnEdit.setTextColor(getColor(R.color.accent_primary_dark));
             btnEdit.setTextSize(12);
             btnEdit.setTypeface(null, android.graphics.Typeface.BOLD);
             btnEdit.setGravity(Gravity.CENTER);
             btnEdit.setPadding(dp(12), dp(8), dp(12), dp(8));
-            btnEdit.setBackground(UiKit.roundedBg(this, R.color.accent_primary, UiKit.dimenPx(this, R.dimen.radius_button)));
+            btnEdit.setBackgroundResource(R.drawable.bg_button_primary);
             LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             editLp.leftMargin = dp(10);
@@ -787,12 +803,12 @@ public class DayDetailActivity extends Activity {
 
             TextView btnEdit = new TextView(this);
             btnEdit.setText("✎ Upraviť");
-            btnEdit.setTextColor(getColor(R.color.text_on_accent));
+            btnEdit.setTextColor(getColor(R.color.accent_primary_dark));
             btnEdit.setTextSize(12);
             btnEdit.setTypeface(null, android.graphics.Typeface.BOLD);
             btnEdit.setGravity(Gravity.CENTER);
             btnEdit.setPadding(dp(12), dp(8), dp(12), dp(8));
-            btnEdit.setBackground(UiKit.roundedBg(this, R.color.accent_primary, UiKit.dimenPx(this, R.dimen.radius_button)));
+            btnEdit.setBackgroundResource(R.drawable.bg_button_primary);
             LinearLayout.LayoutParams editLp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             editLp.leftMargin = dp(10);
@@ -934,6 +950,17 @@ public class DayDetailActivity extends Activity {
         dialogLayout.setPadding(dp(20), dp(16), dp(20), dp(16));
         dialogScroll.addView(dialogLayout);
 
+        // Odpočet pauzy aj priamo v dialógu — séria sa zapisuje tu, nech je odpočet na očiach
+        final boolean isTodayDialog = dateKey.equals(ActivityStore.todayKey());
+        if (isTodayDialog) {
+            RestTimerBar restBar = new RestTimerBar(this);
+            LinearLayout.LayoutParams restLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            restLp.bottomMargin = dp(12);
+            restBar.setLayoutParams(restLp);
+            dialogLayout.addView(restBar);
+        }
+
         // Meno cvičenia — dropdown/našepkávač z pevného zoznamu (SK + EN názvy) + vlastné cviky
         List<String> dropdownItems = new ArrayList<>(ExerciseCatalog.getAll(this, c.key));
         dropdownItems.add(CUSTOM_EXERCISE_SENTINEL);
@@ -949,8 +976,8 @@ public class DayDetailActivity extends Activity {
         ImageView ivPreview = new ImageView(this);
         ivPreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
         int muscleFallbackRes = Category.muscleDrawableFor(c.key);
-        if (muscleFallbackRes != 0) ivPreview.setImageResource(muscleFallbackRes);
-        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(dp(64), dp(64));
+        if (muscleFallbackRes != 0) ivPreview.setImageDrawable(Category.muscleIcon(this, c.key));
+        LinearLayout.LayoutParams previewLp = new LinearLayout.LayoutParams(dp(120), dp(90));
         previewLp.gravity = Gravity.CENTER_HORIZONTAL;
         previewLp.bottomMargin = dp(10);
         ivPreview.setLayoutParams(previewLp);
@@ -1148,11 +1175,16 @@ public class DayDetailActivity extends Activity {
                         this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_chip)));
                 unitSpinner.setPadding(dp(8), dp(4), dp(8), dp(4));
                 unitSpinner.setLayoutParams(new LinearLayout.LayoutParams(
-                        dp(88), LinearLayout.LayoutParams.WRAP_CONTENT));
+                        dp(76), LinearLayout.LayoutParams.WRAP_CONTENT));
                 setRow.addView(unitSpinner);
 
                 rowData = new View[]{tvNum, etW, etR, unitSpinner};
             }
+
+            // RPE (subjektívna náročnosť) — voliteľné; čip je uložený ako tag čísla série (rowData[0])
+            TextView rpeChip = makeRpeChip();
+            tvNum.setTag(rpeChip);
+            setRow.addView(rpeChip);
 
             TextView btnX = new TextView(this);
             btnX.setText("✕");
@@ -1218,6 +1250,7 @@ public class DayDetailActivity extends Activity {
                     int unitIdx = UNIT_VALUES.indexOf(se.unit);
                     ((Spinner) row[3]).setSelection(unitIdx < 0 ? 0 : unitIdx);
                 }
+                setRpe((TextView) row[0].getTag(), se.rpe);
             }
         };
 
@@ -1239,6 +1272,8 @@ public class DayDetailActivity extends Activity {
                 updateSetsLabel.run();
             }
             fillRows.accept(last.sets);
+            // RPE sa hodnotí pri každej sérii nanovo — z minulého tréningu ho nepreberáme
+            for (View[] row : setRows) setRpe((TextView) row[0].getTag(), 0f);
         };
 
         // One-Click Auto-Fill: keď appka práve rozpoznala cvik a používateľ ešte nič nezačal
@@ -1336,6 +1371,11 @@ public class DayDetailActivity extends Activity {
             View[] prevRow = setRows.isEmpty() ? null : setRows.get(setRows.size() - 1);
             addRow.run();
             if (prevRow != null) copyRowValues(prevRow, setRows.get(setRows.size() - 1), currentType[0]);
+            // Pridanie ďalšej série = predchádzajúca je odcvičená -> spusti pauzu (len dnes)
+            if (isTodayDialog && RestTimer.isAutoStart(this)) {
+                RestTimer.maybeAskNotificationPermission(this);
+                RestTimer.startDefault(this);
+            }
         });
         dialogLayout.addView(btnAddSet);
 
@@ -1367,7 +1407,7 @@ public class DayDetailActivity extends Activity {
                         if (durStr.trim().isEmpty()) continue; // úplne prázdny riadok — v poriadku, preskoč
                         Integer seconds = SetEntry.parseDuration(durStr);
                         if (seconds == null) { invalidRow = true; break; }
-                        sets.add(SetEntry.duration(seconds));
+                        sets.add(withRpe(SetEntry.duration(seconds), r));
                     }
                 } else if (currentType[0] == MetricType.BODYWEIGHT_AND_REPS) {
                     for (View[] r : setRows) {
@@ -1390,7 +1430,7 @@ public class DayDetailActivity extends Activity {
                             if (added == null) { invalidRow = true; break; }
                             delta = added;
                         }
-                        sets.add(SetEntry.bodyweight(reps, delta));
+                        sets.add(withRpe(SetEntry.bodyweight(reps, delta), r));
                     }
                 } else {
                     for (View[] r : setRows) {
@@ -1411,7 +1451,7 @@ public class DayDetailActivity extends Activity {
                         int unitSel = ((Spinner) r[3]).getSelectedItemPosition();
                         String unit = (unitSel >= 0 && unitSel < UNIT_VALUES.size())
                                 ? UNIT_VALUES.get(unitSel) : SetEntry.UNIT_KG;
-                        sets.add(new SetEntry(w, reps, unit));
+                        sets.add(withRpe(new SetEntry(w, reps, unit), r));
                     }
                 }
 
@@ -1727,13 +1767,21 @@ public class DayDetailActivity extends Activity {
     private void refreshExercisePreview(ImageView iv, Category c, String exerciseName,
                                          Map<String, ExerciseDefinition> exerciseDefsByName) {
         int muscleRes = Category.muscleDrawableFor(c.key);
-        if (muscleRes != 0) iv.setImageResource(muscleRes);
+        if (muscleRes != 0) iv.setImageDrawable(Category.muscleIcon(this, c.key));
         if (exerciseName == null || exerciseName.trim().isEmpty()) {
             iv.setTag(null);
             return;
         }
         ExerciseDefinition def = exerciseDefsByName.get(exerciseName);
         String imageUrl = def != null ? def.imageUrl : null;
+        if (imageUrl == null) {
+            // Zabudované cviky majú fotku z free-exercise-db (pozri ExerciseMedia)
+            ExerciseMedia.Info media = ExerciseMedia.get(this, exerciseName);
+            if (media != null && media.imageCount > 0) {
+                ExerciseImageCache.loadInto(this, media.imageCacheKey(0), media.imageUrl(0), iv);
+                return;
+            }
+        }
         ExerciseImageCache.loadInto(this, exerciseName, imageUrl, iv);
     }
 
@@ -1741,6 +1789,74 @@ public class DayDetailActivity extends Activity {
      * Skopíruje hodnoty jedného riadku série do druhého (rovnaký MetricType) — použité pri
      * "+ Pridať sériu", aby nová séria rovno začala tam, kde skončila predchádzajúca.
      */
+    // ─── RPE (subjektívna náročnosť série) ─────────────────────────────────────
+
+    private TextView makeRpeChip() {
+        TextView chip = new TextView(this);
+        chip.setTextSize(12);
+        chip.setGravity(Gravity.CENTER);
+        chip.setSingleLine(true);
+        chip.setBackground(UiKit.roundedBgWithBorder(
+                this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_chip)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(44), dp(36));
+        lp.leftMargin = dp(6);
+        chip.setLayoutParams(lp);
+        chip.setContentDescription("RPE — náročnosť série");
+        chip.setOnClickListener(v -> showRpePicker(chip));
+        setRpe(chip, 0f);
+        return chip;
+    }
+
+    private void setRpe(TextView chip, float rpe) {
+        if (chip == null) return;
+        chip.setTag(rpe);
+        if (rpe > 0) {
+            chip.setText("@" + SetEntry.formatRpe(rpe));
+            chip.setTextColor(getColor(R.color.accent_primary));
+            chip.setTypeface(null, android.graphics.Typeface.BOLD);
+        } else {
+            chip.setText("RPE");
+            chip.setTextColor(getColor(R.color.text_muted));
+            chip.setTypeface(null, android.graphics.Typeface.NORMAL);
+        }
+    }
+
+    private SetEntry withRpe(SetEntry se, View[] row) {
+        Object chip = row[0].getTag();
+        if (chip instanceof TextView && ((TextView) chip).getTag() instanceof Float) {
+            se.rpe = (Float) ((TextView) chip).getTag();
+        }
+        return se;
+    }
+
+    /** Výber RPE s vysvetlením (RIR = koľko opakovaní ostalo v zásobe). */
+    private void showRpePicker(TextView chip) {
+        String[] labels = {
+                "— bez RPE",
+                "10 — do zlyhania, už ani jedno",
+                "9,5 — možno by som dal ešte 1",
+                "9 — ešte 1 opakovanie v zásobe",
+                "8,5 — 1–2 v zásobe",
+                "8 — 2 opakovania v zásobe",
+                "7,5 — 2–3 v zásobe",
+                "7 — 3 opakovania v zásobe",
+                "6,5 — 3–4 v zásobe",
+                "6 — ľahké, 4+ v zásobe",
+        };
+        float[] values = {0f, 10f, 9.5f, 9f, 8.5f, 8f, 7.5f, 7f, 6.5f, 6f};
+        float current = chip.getTag() instanceof Float ? (Float) chip.getTag() : 0f;
+        int checked = 0;
+        for (int i = 0; i < values.length; i++) if (values[i] == current) checked = i;
+        new AlertDialog.Builder(this)
+                .setTitle("RPE — aká ťažká bola séria?")
+                .setSingleChoiceItems(labels, checked, (d, which) -> {
+                    setRpe(chip, values[which]);
+                    d.dismiss();
+                })
+                .setNegativeButton("Zrušiť", null)
+                .show();
+    }
+
     private void copyRowValues(View[] from, View[] to, MetricType type) {
         if (type == MetricType.DURATION) {
             ((EditText) to[1]).setText(((EditText) from[1]).getText());

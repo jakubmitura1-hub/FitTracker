@@ -70,6 +70,22 @@ public class Category {
      * Pokrýva aj tri legacy kombinované kľúče (spred rozdelenia na čisté partie) — staré dni
      * uložené pod nimi musia diagram naďalej zobrazovať rovnako ako predtým.
      */
+    /**
+     * Realistická ikona partie (render postavy s partiou načerveno, MuscleMapView.categoryIcon),
+     * pri chybe načítania assets starý vektorový diagram; null pre partie bez svalov (kardio).
+     * Toto používaj na zobrazenie — muscleDrawableFor slúži už len ako záloha.
+     */
+    public static android.graphics.drawable.Drawable muscleIcon(android.content.Context ctx, String categoryKey) {
+        android.graphics.Bitmap bmp = MuscleMapView.categoryIcon(ctx, categoryKey);
+        if (bmp != null) {
+            android.graphics.drawable.BitmapDrawable d = new android.graphics.drawable.BitmapDrawable(ctx.getResources(), bmp);
+            d.setFilterBitmap(true);
+            return d;
+        }
+        int res = muscleDrawableFor(categoryKey);
+        return res != 0 ? ctx.getDrawable(res) : null;
+    }
+
     public static int muscleDrawableFor(String categoryKey) {
         if (categoryKey == null) return 0;
         switch (categoryKey) {

@@ -1,0 +1,8 @@
+Anatomická postava (body_*.webp, muscles_*.bin) je vyrenderovaná z 3D modelu Z-Anatomy.
+
+Z-Anatomy — https://www.z-anatomy.com/ — licencia CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/). Model vychádza z projektu BodyParts3D
+(c) The Database Center for Life Science, CC BY-SA 2.1 JP.
+
+Úpravy: výber povrchových svalov, šliach a kostry, koža hlavy, render v Blendri 4.2 (Workbench),
+mapa svalových skupín. Tieto obrázky sa šíria pod rovnakou licenciou CC BY-SA 4.0.

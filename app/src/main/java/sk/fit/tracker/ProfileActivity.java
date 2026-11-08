@@ -2,6 +2,7 @@ package sk.fit.tracker;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -58,10 +59,16 @@ public class ProfileActivity extends Activity {
     }
 
     private EditText etHeight;
+    private TextView tvFocus;
     private EditText etWeight;
     private TextView tvBackupStatus;
     private LinearLayout weightHistoryContainer;
     private final List<MeasurementField> measurementFields = new ArrayList<>();
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(ThemeStore.wrap(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,7 +86,7 @@ public class ProfileActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("👤 Profil");
-        title.setTextColor(getColor(R.color.text_white));
+        title.setTextColor(getColor(R.color.text_primary));
         title.setTextSize(19);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
         root.addView(title);
@@ -90,6 +97,33 @@ public class ProfileActivity extends Activity {
         subtitle.setTextSize(12);
         subtitle.setPadding(0, dp(2), 0, dp(20));
         root.addView(subtitle);
+
+        // ─── Fokus (partie z onboardingu) ────────────────────────────────────
+        LinearLayout focusCard = UiKit.card(this);
+        focusCard.setOrientation(LinearLayout.HORIZONTAL);
+        focusCard.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        LinearLayout focusTexts = new LinearLayout(this);
+        focusTexts.setOrientation(LinearLayout.VERTICAL);
+        focusTexts.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        TextView focusTitle = new TextView(this);
+        focusTitle.setText("🎯 Môj fokus");
+        focusTitle.setTextColor(getColor(R.color.text_primary));
+        focusTitle.setTextSize(14);
+        focusTitle.setTypeface(null, android.graphics.Typeface.BOLD);
+        focusTexts.addView(focusTitle);
+        tvFocus = new TextView(this);
+        tvFocus.setTextColor(getColor(R.color.text_secondary));
+        tvFocus.setTextSize(12);
+        tvFocus.setPadding(0, dp(2), 0, 0);
+        focusTexts.addView(tvFocus);
+        focusCard.addView(focusTexts);
+        TextView focusChange = new TextView(this);
+        focusChange.setText("Zmeniť ›");
+        focusChange.setTextColor(getColor(R.color.accent_primary));
+        focusChange.setTextSize(13);
+        focusCard.addView(focusChange);
+        focusCard.setOnClickListener(v -> startActivity(OnboardingActivity.intent(this, true)));
+        root.addView(focusCard);
 
         LinearLayout card = UiKit.card(this);
 
@@ -154,8 +188,8 @@ public class ProfileActivity extends Activity {
 
         Button btnSave = new Button(this);
         btnSave.setText("✔ Uložiť");
-        btnSave.setTextColor(getColor(R.color.accent_primary_text));
-        btnSave.setBackgroundColor(getColor(R.color.accent_primary_dark));
+        btnSave.setTextColor(getColor(R.color.accent_primary_dark));
+        btnSave.setBackgroundResource(R.drawable.bg_button_primary);
         LinearLayout.LayoutParams saveLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(52));
         saveLp.topMargin = dp(16);
@@ -210,12 +244,12 @@ public class ProfileActivity extends Activity {
 
         TextView btnBackup = new TextView(this);
         btnBackup.setText("💾 Zálohovať dáta");
-        btnBackup.setTextColor(getColor(R.color.text_on_accent));
+        btnBackup.setTextColor(getColor(R.color.accent_primary_dark));
         btnBackup.setTextSize(13);
         btnBackup.setTypeface(null, android.graphics.Typeface.BOLD);
         btnBackup.setGravity(android.view.Gravity.CENTER);
         btnBackup.setPadding(0, dp(12), 0, dp(12));
-        btnBackup.setBackground(UiKit.roundedBg(this, R.color.accent_primary, UiKit.dimenPx(this, R.dimen.radius_button)));
+        btnBackup.setBackgroundResource(R.drawable.bg_button_primary);
         LinearLayout.LayoutParams btnBackupLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         btnBackupLp.bottomMargin = dp(8);
@@ -268,7 +302,7 @@ public class ProfileActivity extends Activity {
 
         Button btnBack = new Button(this);
         btnBack.setText("← Späť");
-        btnBack.setTextColor(getColor(R.color.text_white));
+        btnBack.setTextColor(getColor(R.color.text_primary));
         btnBack.setBackgroundColor(getColor(R.color.bg_button_neutral));
         LinearLayout.LayoutParams backLp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
@@ -276,6 +310,13 @@ public class ProfileActivity extends Activity {
         btnBack.setLayoutParams(backLp);
         btnBack.setOnClickListener(v -> finish());
         root.addView(btnBack);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        java.util.Set<String> focus = FocusStore.getMuscles(this);
+        tvFocus.setText(focus.isEmpty() ? "Nevybraté — ťukni a vyber partie" : FocusStore.describe(focus));
     }
 
     private void saveProfile() {
