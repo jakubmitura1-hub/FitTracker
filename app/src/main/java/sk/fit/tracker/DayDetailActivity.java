@@ -130,6 +130,7 @@ public class DayDetailActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        UiKit.edgeToEdge(this); // odstup od stavového riadku, navigácie a klávesnice (Android 15+)
 
         dateKey = getIntent().getStringExtra("date");
         if (dateKey == null) dateKey = ActivityStore.todayKey();

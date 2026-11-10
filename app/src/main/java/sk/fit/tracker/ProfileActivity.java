@@ -77,6 +77,7 @@ public class ProfileActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        UiKit.edgeToEdge(this); // odstup od stavového riadku, navigácie a klávesnice (Android 15+)
 
         ScrollView scroll = new ScrollView(this);
         scroll.setId(R.id.profile_scroll); // stabilné ID — po otočení sa zachová pozícia rolovania

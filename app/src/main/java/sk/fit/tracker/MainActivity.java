@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        UiKit.edgeToEdge(this); // odstup od stavového riadku, navigácie a klávesnice (Android 15+)
         setContentView(R.layout.activity_main);
 
         calendarContainer = findViewById(R.id.calendar_container);

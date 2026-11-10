@@ -2,7 +2,7 @@
 
 Pokračovanie pre novú Claude Code reláciu. Najprv si prečítaj **Stav** a **Pozor**.
 
-- Projekt: `C:\applikacie kubo\FitTrackerFix\FitTracker` (balík `sk.fit.tracker`, minSdk 26, targetSdk 34)
+- Projekt: `C:\applikacie kubo\FitTrackerFix\FitTracker` (balík `sk.fit.tracker`, minSdk 26, targetSdk 35, AGP 8.13, Gradle 8.13, Java 17)
 - Telefón používateľa: Android 16 (SDK 36), pripája sa cez USB
 - Inšpirácia: appka **Lyfta** (screenshoty boli v Stiahnutých 2026-11-08). Preberáme nápady a funkcie,
   **nie** jej grafiku, texty ani vzhľad.
@@ -161,5 +161,15 @@ Kontrola kódu: https://claude.ai/artifact/Bn6NCSTnWj1Gn8PfQECdts. Hotové a nai
   kalórie z váhy platnej v ten deň (`ProfileStore.getWeightKgOn`), mazanie zdieľaných súborov z cache,
   odpočet pauzy po reštarte (`RestTimer.ensureScheduled`), odstránený mŕtvy kód a nepoužité písmo Cormorant.
 
-Neurobené (treba rozhodnutie používateľa): podpisovanie release, upgrade AGP/targetSdk 35+ (edge-to-edge,
-prediktívne Späť), rozdelenie `DayDetailActivity`, zjednotenie duplicitných pomocných metód, ikony svalov na pozadí.
+Neurobené (treba rozhodnutie používateľa): podpisovanie release, targetSdk 36 (prediktívne Späť — `onBackPressed`
+v OnboardingActivity prestane fungovať), rozdelenie `DayDetailActivity`, zjednotenie duplicitných pomocných metód, ikony svalov na pozadí.
+
+## Android 15 / targetSdk 35 (2026-11-10)
+
+- AGP 8.2.2 → 8.13.0, Gradle 8.5 → 8.13, compileSdk/targetSdk 35. `app/build.gradle` používa zápis `prop = value`
+  (starý `prop value` Gradle 10 nepodporí).
+- Android 15 vynucuje kreslenie od okraja po okraj. Každá aktivita volá hneď po `super.onCreate` `UiKit.edgeToEdge(this)`:
+  odstup obsahu o stavový riadok, navigáciu, výrez kamery a klávesnicu (rovnako aj na starších Androidoch).
+  **Nová aktivita ho musí volať tiež**, inak jej obsah zalezie pod hodiny a navigačnú lištu.
+- Overené screenshotmi na telefóne (tmavý režim, 3-tlačidlová navigácia): hlavná obrazovka, deň, Štatistiky,
+  Progres, Katalóg, Profil aj s klávesnicou. Svetlý režim, Onboarding a detail cviku som neprezeral.

@@ -13,6 +13,31 @@ public class UiKit {
 
     private UiKit() {}
 
+    /**
+     * Obsah od okraja po okraj (Android 15+ to vynucuje pri targetSdk 35): appka kreslí aj pod
+     * stavový riadok a navigačnú lištu, preto obsah obrazovky dostane odstup presne o ich výšku
+     * (a o výrez kamery). Spodný odstup zároveň rastie s klávesnicou, takže polia a tlačidlá dole
+     * ostanú nad ňou. Rovnaké správanie na všetkých verziách Androidu (aj starších ako 15).
+     * Volať v onCreate každej aktivity hneď po super.onCreate().
+     */
+    public static void edgeToEdge(android.app.Activity activity) {
+        android.view.Window window = activity.getWindow();
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(window, false);
+        window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        // Bez polopriehľadného závoja za 3-tlačidlovou navigáciou — lišta má farbu pozadia appky
+        if (android.os.Build.VERSION.SDK_INT >= 29) window.setNavigationBarContrastEnforced(false);
+
+        android.view.View content = activity.findViewById(android.R.id.content);
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
+            androidx.core.graphics.Insets bars = insets.getInsets(
+                    androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                            | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets ime = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
+    }
+
     public static int dp(Context ctx, int v) {
         return (int) (v * ctx.getResources().getDisplayMetrics().density);
     }

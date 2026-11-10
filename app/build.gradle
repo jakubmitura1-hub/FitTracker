@@ -3,31 +3,32 @@ plugins {
 }
 
 android {
-    namespace 'sk.fit.tracker'
-    compileSdk 34
+    namespace = 'sk.fit.tracker'
+    compileSdk = 35
 
     defaultConfig {
-        applicationId "sk.fit.tracker"
-        minSdk 26
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        applicationId = "sk.fit.tracker"
+        minSdk = 26
+        // Android 15: appka kreslí od okraja po okraj — odstupy rieši UiKit.edgeToEdge v každej aktivite
+        targetSdk = 35
+        versionCode = 1
+        versionName = "1.0"
     }
 
     buildTypes {
         release {
             // Zmenšenie a optimalizácia release verzie (R8) — odstráni nepoužitý kód a zdroje.
             // Debug verzia (tá, čo je v telefóne) sa tým nemení.
-            minifyEnabled true
-            shrinkResources true
+            minifyEnabled = true
+            shrinkResources = true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }
     }
 
     compileOptions {
         // Java 8 je zastaraná (kompilátor varoval, že ju odstráni); Java 17 je štandard pre Android Gradle Plugin 8
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 

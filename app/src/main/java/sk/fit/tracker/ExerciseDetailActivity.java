@@ -68,6 +68,7 @@ public class ExerciseDetailActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        UiKit.edgeToEdge(this); // odstup od stavového riadku, navigácie a klávesnice (Android 15+)
         name = getIntent().getStringExtra(EXTRA_NAME);
         if (name == null) {
             finish();

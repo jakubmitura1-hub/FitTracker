@@ -47,6 +47,7 @@ public class OnboardingActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        UiKit.edgeToEdge(this); // odstup od stavového riadku, navigácie a klávesnice (Android 15+)
         editMode = getIntent().getBooleanExtra(EXTRA_EDIT, false);
         if (savedInstanceState != null && savedInstanceState.getStringArrayList(STATE_SELECTED) != null) {
             selected.addAll(savedInstanceState.getStringArrayList(STATE_SELECTED));
