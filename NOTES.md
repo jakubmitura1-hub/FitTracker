@@ -140,7 +140,7 @@ Odhad 1RM, osobné rekordy a grafy objemu už appka má.
   (typ `"ss"`). Obľúbené a premenované cviky sa predtým do zálohy vôbec neukladali.
   Obnovenie zo zálohy nebolo na telefóne testované, aby sa neprepísali dáta.
 
-## Opravy po kontrole kódu (2026-11-10, vetva `code-review-fixes`, nezlúčené do main, nepushnuté)
+## Opravy po kontrole kódu (2026-11-10, vetva `code-review-fixes`, na pokyn používateľa zlúčené do main a pushnuté na origin)
 
 Kontrola kódu: https://claude.ai/artifact/Bn6NCSTnWj1Gn8PfQECdts. Hotové a nainštalované na telefóne:
 
