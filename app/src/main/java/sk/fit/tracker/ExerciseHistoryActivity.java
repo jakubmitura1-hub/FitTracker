@@ -23,6 +23,9 @@ import java.util.Map;
 
 public class ExerciseHistoryActivity extends Activity {
 
+    /** Názov cviku -> partia, načítané z katalógu raz pre celú obrazovku (nie pre každú kartu zvlášť). */
+    private Map<String, String> categoryKeyByName;
+
     @Override
     protected void attachBaseContext(Context newBase) {
         super.attachBaseContext(ThemeStore.wrap(newBase));
@@ -75,7 +78,7 @@ public class ExerciseHistoryActivity extends Activity {
                 root.addView(buildExerciseCard(entry.getKey(), entry.getValue()));
             }
 
-            Map<String, Object[]> personalBests = ExerciseStore.getPersonalBestsByExercise(this);
+            Map<String, Object[]> personalBests = ExerciseStore.getPersonalBestsByExercise(history);
             if (!personalBests.isEmpty()) {
                 root.addView(buildPersonalBestsCard(personalBests));
             }
@@ -155,28 +158,22 @@ public class ExerciseHistoryActivity extends Activity {
 
         Exercise latestEx = (Exercise) entriesChrono.get(entriesChrono.size() - 1)[1];
 
-        // Hlavička karty — obrázok (sval alebo v budúcnosti profi vizuál) + názov cvičenia.
+        // Hlavička karty — ikona partie (sval na postave) + názov cvičenia.
         LinearLayout nameRow = new LinearLayout(this);
         nameRow.setOrientation(LinearLayout.HORIZONTAL);
         nameRow.setGravity(Gravity.CENTER_VERTICAL);
         nameRow.setPadding(0, 0, 0, dp(8));
 
-        String detailedUrl = latestEx.getDetailedVisualUrl();
-        if (detailedUrl != null) {
-            // TODO: budúcnosť — profesionálny 3D vizuál zo siete (Glide/Picasso, aby sa veľké
-            // obrázky sťahovali/cachovali bez zahltenia pamäte telefónu). Kým getDetailedVisualUrl()
-            // vždy vracia null, appka sem nikdy nedôjde a použije sa lokálny obrázok svalu nižšie.
-        } else {
-            String categoryKey = ExerciseCatalog.findCategoryKeyForExercise(this, name);
-            int muscleRes = categoryKey != null ? Category.muscleDrawableFor(categoryKey) : 0;
-            if (muscleRes != 0) {
-                android.widget.ImageView muscleIcon = new android.widget.ImageView(this);
-                muscleIcon.setImageDrawable(Category.muscleIcon(this, categoryKey));
-                LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(18), dp(30));
-                iconLp.rightMargin = dp(10);
-                muscleIcon.setLayoutParams(iconLp);
-                nameRow.addView(muscleIcon);
-            }
+        if (categoryKeyByName == null) categoryKeyByName = ExerciseCatalog.categoryKeysByExerciseName(this);
+        String categoryKey = categoryKeyByName.get(name);
+        int muscleRes = categoryKey != null ? Category.muscleDrawableFor(categoryKey) : 0;
+        if (muscleRes != 0) {
+            android.widget.ImageView muscleIcon = new android.widget.ImageView(this);
+            muscleIcon.setImageDrawable(Category.muscleIcon(this, categoryKey));
+            LinearLayout.LayoutParams iconLp = new LinearLayout.LayoutParams(dp(18), dp(30));
+            iconLp.rightMargin = dp(10);
+            muscleIcon.setLayoutParams(iconLp);
+            nameRow.addView(muscleIcon);
         }
 
         TextView tvName = new TextView(this);
@@ -292,11 +289,16 @@ public class ExerciseHistoryActivity extends Activity {
             ProgressHero.apply(this, heroValue, heroLabel, trendChip, metricType, false, single);
         }
 
-        // Najvyssie max weight pre PB
+        // Osobný rekord = PRVÝ tréning (chronologicky), kde padla najvyššia váha — trofej dostane
+        // len ten, nie každý ďalší tréning s rovnakou váhou
         float pb = 0;
-        for (Object[] o : entriesChrono) {
-            float w = ((Exercise) o[1]).maxWeight();
-            if (w > pb) pb = w;
+        int pbChronoIndex = -1;
+        for (int k = 0; k < entriesChrono.size(); k++) {
+            float w = ((Exercise) entriesChrono.get(k)[1]).maxWeight();
+            if (w > pb) {
+                pb = w;
+                pbChronoIndex = k;
+            }
         }
 
         // Zobraz od najnovsieho — staršie tréningy (i > 0) idú do skladateľného historyContainer,
@@ -309,77 +311,10 @@ public class ExerciseHistoryActivity extends Activity {
         historyContainer.setOrientation(LinearLayout.VERTICAL);
         historyContainer.setVisibility(View.GONE);
 
-        for (int i = 0; i < reversed.size(); i++) {
-            Object[] o = reversed.get(i);
-            String dateKey = (String) o[0];
-            Exercise ex = (Exercise) o[1];
-            boolean isLatest = (i == 0);
-            boolean isPB = (ex.maxWeight() == pb && pb > 0);
-            LinearLayout target = isLatest ? card : historyContainer;
-
-            // Datum riadok
-            LinearLayout rowHeader = new LinearLayout(this);
-            rowHeader.setOrientation(LinearLayout.HORIZONTAL);
-            rowHeader.setGravity(Gravity.CENTER_VERTICAL);
-            rowHeader.setPadding(0, dp(6), 0, dp(2));
-
-            TextView tvDate = new TextView(this);
-            tvDate.setText(ProgressHero.formatNice(dateKey));
-            tvDate.setTextColor(isLatest ? getColor(R.color.accent_primary_soft) : getColor(R.color.text_muted));
-            tvDate.setTextSize(11);
-            tvDate.setTypeface(null, isLatest ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
-            tvDate.setLayoutParams(new LinearLayout.LayoutParams(
-                    0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-            rowHeader.addView(tvDate);
-
-            if (isPB) {
-                TextView tvPB = new TextView(this);
-                tvPB.setText("🏆 PB");
-                tvPB.setTextColor(getColor(R.color.accent_highlight));
-                tvPB.setTextSize(11);
-                rowHeader.addView(tvPB);
-            }
-
-            // Sipka trendu (porovnaj max weight s predchadzajucim zaznamom)
-            if (i < reversed.size() - 1) {
-                float prevMax = ((Exercise) reversed.get(i + 1)[1]).maxWeight();
-                float curMax = ex.maxWeight();
-                String arrow = curMax > prevMax ? " ↑" : curMax < prevMax ? " ↓" : "";
-                if (!arrow.isEmpty()) {
-                    TextView tvArrow = new TextView(this);
-                    tvArrow.setText(arrow);
-                    tvArrow.setTextColor(curMax > prevMax ?
-                            getColor(R.color.accent_primary_soft) : getColor(R.color.accent_danger));
-                    tvArrow.setTextSize(13);
-                    rowHeader.addView(tvArrow);
-                }
-            }
-
-            target.addView(rowHeader);
-
-            // Riadky serii
-            for (int s = 0; s < ex.sets.size(); s++) {
-                SetEntry se = ex.sets.get(s);
-                TextView tvSet = new TextView(this);
-                tvSet.setText("  Séria " + (s + 1) + ": " + se.toString());
-                tvSet.setTextColor(isLatest ?
-                        getColor(R.color.text_primary) : getColor(R.color.text_secondary));
-                tvSet.setTextSize(12);
-                tvSet.setTypeface(android.graphics.Typeface.MONOSPACE);
-                target.addView(tvSet);
-            }
-
-            // Separator (nie za poslednym)
-            if (i < reversed.size() - 1) {
-                android.view.View sep = new android.view.View(this);
-                LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-                sepLp.topMargin = dp(6);
-                sep.setLayoutParams(sepLp);
-                sep.setBackgroundColor(getColor(R.color.separator));
-                target.addView(sep);
-            }
-        }
+        // Posledný tréning hneď; staršie sa vytvoria až pri prvom rozbalení (pri dlhej histórii
+        // by inak otvorenie Progresu vytváralo stovky skrytých riadkov naraz)
+        final int pbIndex = pbChronoIndex; // pre lambdu nižšie
+        addHistoryEntry(card, reversed, 0, pbIndex);
 
         int olderCount = reversed.size() - 1;
         if (olderCount > 0) {
@@ -389,6 +324,11 @@ public class ExerciseHistoryActivity extends Activity {
             btnToggleHistory.setTextSize(11);
             btnToggleHistory.setPadding(0, dp(10), 0, dp(4));
             btnToggleHistory.setOnClickListener(v -> {
+                if (historyContainer.getChildCount() == 0) {
+                    for (int i = 1; i < reversed.size(); i++) {
+                        addHistoryEntry(historyContainer, reversed, i, pbIndex);
+                    }
+                }
                 boolean showing = historyContainer.getVisibility() == View.VISIBLE;
                 historyContainer.setVisibility(showing ? View.GONE : View.VISIBLE);
                 btnToggleHistory.setText((showing ? "▾ Zobraziť históriu (" : "▴ Skryť históriu (")
@@ -409,6 +349,81 @@ public class ExerciseHistoryActivity extends Activity {
         card.addView(btnMerge);
 
         return card;
+    }
+
+    /**
+     * Jeden tréning v karte cviku: dátum (+ 🏆 PB a šípka trendu) a jeho série.
+     * reversed = najnovší prvý; i = index v ňom; pbChronoIndex = index rekordu v chronologickom poradí.
+     */
+    private void addHistoryEntry(LinearLayout target, List<Object[]> reversed, int i, int pbChronoIndex) {
+        Object[] o = reversed.get(i);
+        String dateKey = (String) o[0];
+        Exercise ex = (Exercise) o[1];
+        boolean isLatest = (i == 0);
+        boolean isPB = (reversed.size() - 1 - i) == pbChronoIndex; // reversed[i] = entriesChrono[size-1-i]
+
+        // Datum riadok
+        LinearLayout rowHeader = new LinearLayout(this);
+        rowHeader.setOrientation(LinearLayout.HORIZONTAL);
+        rowHeader.setGravity(Gravity.CENTER_VERTICAL);
+        rowHeader.setPadding(0, dp(6), 0, dp(2));
+
+        TextView tvDate = new TextView(this);
+        tvDate.setText(ProgressHero.formatNice(dateKey));
+        tvDate.setTextColor(isLatest ? getColor(R.color.accent_primary_soft) : getColor(R.color.text_muted));
+        tvDate.setTextSize(11);
+        tvDate.setTypeface(null, isLatest ? android.graphics.Typeface.BOLD : android.graphics.Typeface.NORMAL);
+        tvDate.setLayoutParams(new LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        rowHeader.addView(tvDate);
+
+        if (isPB) {
+            TextView tvPB = new TextView(this);
+            tvPB.setText("🏆 PB");
+            tvPB.setTextColor(getColor(R.color.accent_highlight));
+            tvPB.setTextSize(11);
+            rowHeader.addView(tvPB);
+        }
+
+        // Sipka trendu (porovnaj max weight s predchadzajucim zaznamom)
+        if (i < reversed.size() - 1) {
+            float prevMax = ((Exercise) reversed.get(i + 1)[1]).maxWeight();
+            float curMax = ex.maxWeight();
+            String arrow = curMax > prevMax ? " ↑" : curMax < prevMax ? " ↓" : "";
+            if (!arrow.isEmpty()) {
+                TextView tvArrow = new TextView(this);
+                tvArrow.setText(arrow);
+                tvArrow.setTextColor(curMax > prevMax ?
+                        getColor(R.color.accent_primary_soft) : getColor(R.color.accent_danger));
+                tvArrow.setTextSize(13);
+                rowHeader.addView(tvArrow);
+            }
+        }
+
+        target.addView(rowHeader);
+
+        // Riadky serii
+        for (int s = 0; s < ex.sets.size(); s++) {
+            SetEntry se = ex.sets.get(s);
+            TextView tvSet = new TextView(this);
+            tvSet.setText("  Séria " + (s + 1) + ": " + se.toString());
+            tvSet.setTextColor(isLatest ?
+                    getColor(R.color.text_primary) : getColor(R.color.text_secondary));
+            tvSet.setTextSize(12);
+            tvSet.setTypeface(android.graphics.Typeface.MONOSPACE);
+            target.addView(tvSet);
+        }
+
+        // Separator (nie za poslednym)
+        if (i < reversed.size() - 1) {
+            android.view.View sep = new android.view.View(this);
+            LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+            sepLp.topMargin = dp(6);
+            sep.setLayoutParams(sepLp);
+            sep.setBackgroundColor(getColor(R.color.separator));
+            target.addView(sep);
+        }
     }
 
     // ─── Manuálne zlúčenie histórie dvoch cvikov ──────────────────────────────

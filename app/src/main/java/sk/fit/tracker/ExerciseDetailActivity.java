@@ -256,14 +256,15 @@ public class ExerciseDetailActivity extends Activity {
         if (media != null && media.equipment != null) {
             infoCard.addView(plainLine("Náradie", ExerciseMedia.equipmentLabel(media.equipment)));
         }
-        ExerciseCatalog.CatalogEntry entry = findEntry();
-        if (entry != null && entry.notes != null && !entry.notes.isEmpty()) {
-            infoCard.addView(plainLine("Poznámka", entry.notes));
+        // Poznámka priamo podľa mena (predtým sa kvôli nej prechádzal celý katalóg)
+        String note = ExerciseNotesStore.getNote(this, name);
+        if (!note.isEmpty()) {
+            infoCard.addView(plainLine("Poznámka", note));
         }
-        Exercise last = ExerciseStore.getLastEntryForExercise(this, name);
-        if (last != null && !history.isEmpty()) {
+        // Posledný tréning z už načítanej histórie (predtým sa kvôli nemu znova čítali všetky dáta)
+        if (!history.isEmpty()) {
             String lastDate = (String) history.get(history.size() - 1)[0];
-            infoCard.addView(plainLine("Naposledy", ProgressHero.formatNice(lastDate) + " — " + last.summary()));
+            infoCard.addView(plainLine("Naposledy", ProgressHero.formatNice(lastDate) + " — " + latest().summary()));
         }
         if (infoCard.getChildCount() > 1) content.addView(infoCard, topMargin(12));
 
@@ -315,13 +316,6 @@ public class ExerciseDetailActivity extends Activity {
         }
     }
 
-    private ExerciseCatalog.CatalogEntry findEntry() {
-        for (ExerciseCatalog.CatalogEntry e : ExerciseCatalog.getAllEntries(this)) {
-            if (e.name.equals(name)) return e;
-        }
-        return null;
-    }
-
     private TextView actionButton(String text, String action, int colorRes) {
         TextView b = new TextView(this);
         b.setText(text);
@@ -347,8 +341,16 @@ public class ExerciseDetailActivity extends Activity {
             return;
         }
         MetricType type = latest().metricType();
+        // Trofej len pre PRVÝ tréning (chronologicky), kde padla najvyššia váha
         float pb = 0;
-        for (Object[] o : history) pb = Math.max(pb, ((Exercise) o[1]).maxWeight());
+        int pbChronoIndex = -1;
+        for (int k = 0; k < history.size(); k++) {
+            float w = ((Exercise) history.get(k)[1]).maxWeight();
+            if (w > pb) {
+                pb = w;
+                pbChronoIndex = k;
+            }
+        }
 
         List<Object[]> reversed = new ArrayList<>(history);
         Collections.reverse(reversed);
@@ -367,7 +369,7 @@ public class ExerciseDetailActivity extends Activity {
             date.setTypeface(null, Typeface.BOLD);
             date.setLayoutParams(new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
             head.addView(date);
-            if (type == MetricType.WEIGHT_AND_REPS && pb > 0 && ex.maxWeight() == pb) {
+            if (type == MetricType.WEIGHT_AND_REPS && (reversed.size() - 1 - i) == pbChronoIndex) {
                 TextView badge = new TextView(this);
                 badge.setText("🏆 PB");
                 badge.setTextColor(getColor(R.color.accent_highlight));

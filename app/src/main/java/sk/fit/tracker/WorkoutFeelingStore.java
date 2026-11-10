@@ -6,7 +6,7 @@ import android.content.SharedPreferences;
 /**
  * Subjektívne hodnotenie tréningového dňa ("Ako sa dnes cítim") — číselná škála 1 (kríza/choroba)
  * až 5 (top forma) plus voľná textová poznámka ku kondícii (napr. "spal som len 5 hodín").
- * Jeden záznam na deň, rovnaký vzor ako WeightStore/WaistStore — nezávislé od odtrénovaných sérií,
+ * Jeden záznam na deň, rovnaký vzor ako WeightStore/BodyMeasurementStore — nezávislé od odtrénovaných sérií,
  * len dopĺňa kontext k tomu, prečo v daný deň klesol/stúpol výkon.
  */
 public class WorkoutFeelingStore {

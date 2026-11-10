@@ -16,18 +16,23 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // Zmenšenie a optimalizácia release verzie (R8) — odstráni nepoužitý kód a zdroje.
+            // Debug verzia (tá, čo je v telefóne) sa tým nemení.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt')
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        // Java 8 je zastaraná (kompilátor varoval, že ju odstráni); Java 17 je štandard pre Android Gradle Plugin 8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
-    implementation 'org.json:json:20231013'
+    // org.json netreba pridávať — Android ho má zabudovaný (appka by aj tak používala systémový)
 }

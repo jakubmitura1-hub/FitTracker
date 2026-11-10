@@ -3,10 +3,21 @@ package sk.fit.tracker;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Export/import všetkých dát appky (kategórie po dňoch, cviky, kardio, vlastné cviky,
@@ -56,36 +67,173 @@ public class BackupManager {
         return root.toString(2);
     }
 
-    /** Obnoví dáta zo zálohy — PREPÍŠE aktuálne dáta appky obsahom súboru. */
+    /** Najvyššia verzia formátu zálohy, ktorú táto verzia appky vie obnoviť. */
+    private static final int SUPPORTED_VERSION = 1;
+
+    /** Záchranná kópia dát spred poslednej obnovy (interné úložisko appky, nie cache — nezmaže sa sama). */
+    private static final String SAFETY_COPY_FILE = "fittracker_pred_obnovou.json";
+
+    /** Súbor nie je platná záloha FitTrackeru — nič sa nezapísalo, dáta appky ostali nezmenené. */
+    public static class InvalidBackupException extends Exception {
+        InvalidBackupException(String message) {
+            super(message);
+        }
+    }
+
+    /**
+     * Obnoví dáta zo zálohy — PREPÍŠE aktuálne dáta appky obsahom súboru. Postup "všetko alebo nič":
+     *  1) celý súbor sa najprv načíta a overí (InvalidBackupException = nič sa nezmenilo),
+     *  2) aktuálne dáta sa uložia ako záchranná kópia (dá sa k nim vrátiť cez undoLastRestore),
+     *  3) až potom sa zapisuje; ak by zápis zlyhal v polovici, pôvodné dáta sa vrátia zo záchrannej kópie.
+     * Časti, ktoré záloha neobsahuje (napr. staršia záloha bez novších nastavení), ostanú nedotknuté.
+     */
     public static void restore(Context ctx, String json) throws Exception {
-        JSONObject root = new JSONObject(json);
+        Map<String, Map<String, Object>> data = parseAndValidate(json);
+
+        String current = export(ctx);
+        writeSafetyCopy(ctx, current);
+
+        try {
+            writeAll(ctx, data);
+        } catch (Exception e) {
+            writeAll(ctx, parseAndValidate(current));
+            throw new java.io.IOException("Zápis dát zlyhal, pôvodné dáta boli vrátené.", e);
+        }
+    }
+
+    /** Či existuje záchranná kópia dát spred poslednej obnovy. */
+    public static boolean hasSafetyCopy(Context ctx) {
+        return safetyCopyFile(ctx).exists();
+    }
+
+    /** Kedy vznikla záchranná kópia (millis), 0 ak neexistuje. */
+    public static long safetyCopyTime(Context ctx) {
+        File f = safetyCopyFile(ctx);
+        return f.exists() ? f.lastModified() : 0L;
+    }
+
+    /** Vráti dáta do stavu pred poslednou obnovou zo zálohy a záchrannú kópiu potom zmaže. */
+    public static void undoLastRestore(Context ctx) throws Exception {
+        File f = safetyCopyFile(ctx);
+        if (!f.exists()) throw new InvalidBackupException("Záchranná kópia neexistuje.");
+        String json;
+        try (InputStream in = new FileInputStream(f)) {
+            ByteArrayOutputStream buf = new ByteArrayOutputStream();
+            byte[] chunk = new byte[8192];
+            int n;
+            while ((n = in.read(chunk)) != -1) buf.write(chunk, 0, n);
+            json = new String(buf.toByteArray(), StandardCharsets.UTF_8);
+        }
+        writeAll(ctx, parseAndValidate(json));
+        //noinspection ResultOfMethodCallIgnored
+        f.delete();
+    }
+
+    private static File safetyCopyFile(Context ctx) {
+        return new File(ctx.getFilesDir(), SAFETY_COPY_FILE);
+    }
+
+    private static void writeSafetyCopy(Context ctx, String json) throws Exception {
+        try (OutputStream out = new FileOutputStream(safetyCopyFile(ctx))) {
+            out.write(json.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Načíta a overí celý obsah zálohy bez akéhokoľvek zápisu. Vráti dáta pripravené na zápis
+     * (názov SharedPreferences -> kľúč -> hodnota v pôvodnom type), alebo vyhodí
+     * InvalidBackupException so zrozumiteľným popisom, čo je so súborom zle.
+     */
+    private static Map<String, Map<String, Object>> parseAndValidate(String json) throws InvalidBackupException {
+        JSONObject root;
+        try {
+            root = new JSONObject(json);
+        } catch (Exception e) {
+            throw new InvalidBackupException("Súbor sa nedá prečítať — nie je to záloha FitTrackeru.");
+        }
+        if (!"FitTracker".equals(root.optString("app"))) {
+            throw new InvalidBackupException("Tento súbor nie je záloha FitTrackeru.");
+        }
+        int version = root.optInt("version", -1);
+        if (version < 1) {
+            throw new InvalidBackupException("Záloha nemá platnú verziu formátu.");
+        }
+        if (version > SUPPORTED_VERSION) {
+            throw new InvalidBackupException("Záloha je z novšej verzie appky — najprv appku aktualizuj.");
+        }
+
+        Map<String, Map<String, Object>> result = new LinkedHashMap<>();
         for (String prefsName : PREFS_TO_BACKUP) {
             if (!root.has(prefsName)) continue;
-            JSONObject prefsJson = root.getJSONObject(prefsName);
-            SharedPreferences.Editor editor = ctx.getSharedPreferences(prefsName, Context.MODE_PRIVATE).edit();
-            editor.clear();
+            JSONObject prefsJson = root.optJSONObject(prefsName);
+            if (prefsJson == null) throw corrupted(prefsName);
 
+            Map<String, Object> values = new LinkedHashMap<>();
             Iterator<String> keys = prefsJson.keys();
             while (keys.hasNext()) {
                 String key = keys.next();
-                JSONObject typed = prefsJson.getJSONObject(key);
-                String type = typed.optString("t", "s");
-                switch (type) {
-                    case "f": editor.putFloat(key, (float) typed.getDouble("v")); break;
-                    case "l": editor.putLong(key, typed.getLong("v")); break;
-                    case "i": editor.putInt(key, typed.getInt("v")); break;
-                    case "b": editor.putBoolean(key, typed.getBoolean("v")); break;
-                    case "ss": {
-                        org.json.JSONArray arr = typed.getJSONArray("v");
-                        java.util.Set<String> set = new java.util.HashSet<>();
-                        for (int i = 0; i < arr.length(); i++) set.add(arr.getString(i));
-                        editor.putStringSet(key, set);
-                        break;
-                    }
-                    default:  editor.putString(key, typed.getString("v")); break;
-                }
+                JSONObject typed = prefsJson.optJSONObject(key);
+                if (typed == null || !typed.has("v")) throw corrupted(prefsName);
+                Object value = parseTypedValue(typed);
+                if (value == null) throw corrupted(prefsName);
+                // Pokazené dátumové kľúče v kalendári nevadia — ActivityStore.getAllEntries ich pri čítaní preskočí
+                values.put(key, value);
             }
-            editor.commit();
+            result.put(prefsName, values);
+        }
+        if (result.isEmpty()) {
+            throw new InvalidBackupException("Záloha neobsahuje žiadne dáta.");
+        }
+        return result;
+    }
+
+    private static InvalidBackupException corrupted(String prefsName) {
+        return new InvalidBackupException("Záloha je poškodená (časť " + prefsName + ").");
+    }
+
+    /** Hodnota podľa typu "t" (rovnaké kódy ako typedValue), null ak typ alebo hodnota nesedí. */
+    private static Object parseTypedValue(JSONObject typed) {
+        Object v = typed.opt("v");
+        switch (typed.optString("t", "s")) {
+            case "f": return v instanceof Number ? (Object) ((Number) v).floatValue() : null;
+            case "l": return v instanceof Number ? (Object) ((Number) v).longValue() : null;
+            case "i": return v instanceof Number ? (Object) ((Number) v).intValue() : null;
+            case "b": return v instanceof Boolean ? v : null;
+            case "s": return v instanceof String ? v : null;
+            case "ss": {
+                if (!(v instanceof JSONArray)) return null;
+                JSONArray arr = (JSONArray) v;
+                Set<String> set = new HashSet<>();
+                for (int i = 0; i < arr.length(); i++) {
+                    Object item = arr.opt(i);
+                    if (!(item instanceof String)) return null;
+                    set.add((String) item);
+                }
+                return set;
+            }
+            default: return null;
+        }
+    }
+
+    /** Zapíše už overené dáta; každá časť zálohy nahradí celý príslušný súbor SharedPreferences. */
+    @SuppressWarnings("unchecked")
+    private static void writeAll(Context ctx, Map<String, Map<String, Object>> data) throws java.io.IOException {
+        for (Map.Entry<String, Map<String, Object>> section : data.entrySet()) {
+            SharedPreferences.Editor editor = ctx.getSharedPreferences(section.getKey(), Context.MODE_PRIVATE).edit();
+            editor.clear();
+            for (Map.Entry<String, Object> e : section.getValue().entrySet()) {
+                String key = e.getKey();
+                Object v = e.getValue();
+                if (v instanceof Float) editor.putFloat(key, (Float) v);
+                else if (v instanceof Long) editor.putLong(key, (Long) v);
+                else if (v instanceof Integer) editor.putInt(key, (Integer) v);
+                else if (v instanceof Boolean) editor.putBoolean(key, (Boolean) v);
+                else if (v instanceof Set) editor.putStringSet(key, (Set<String>) v);
+                else editor.putString(key, (String) v);
+            }
+            if (!editor.commit()) {
+                throw new java.io.IOException("Nepodarilo sa zapísať " + section.getKey());
+            }
         }
     }
 

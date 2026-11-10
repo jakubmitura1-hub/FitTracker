@@ -13,6 +13,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.ref.WeakReference;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
@@ -57,10 +58,6 @@ public class ExerciseImageCache {
         return new File(ctx.getFilesDir(), "exercise_" + sanitize(exerciseName) + ".jpg");
     }
 
-    public static boolean isCached(Context ctx, String exerciseName) {
-        return cacheFileFor(ctx, exerciseName).exists();
-    }
-
     /**
      * Nastaví obrázok cviku do daného ImageView, len ak má naozaj čo zobraziť:
      *  1) ak je obrázok už natrvalo uložený na disku, načíta ho hneď (offline, bez siete),
@@ -82,41 +79,47 @@ public class ExerciseImageCache {
      * ako sa do ImageView naozaj nastavil obrázok cviku — napr. na prepnutie scaleType zo
      * siluety partie na fotku cez celú plochu.
      */
-    public static void loadInto(Context ctx, String exerciseName, String imageUrl, ImageView target, Runnable onLoaded) {
+    public static void loadInto(Context ctx, String exerciseName, String imageUrl, ImageView target, java.util.function.Consumer<ImageView> onLoaded) {
         Context appCtx = ctx.getApplicationContext();
         target.setTag(exerciseName);
 
         Bitmap inMemory = MEMORY.get(exerciseName);
         if (inMemory != null) {
             target.setImageBitmap(inMemory);
-            if (onLoaded != null) onLoaded.run();
+            if (onLoaded != null) onLoaded.accept(target);
             return;
         }
 
         File cached = cacheFileFor(appCtx, exerciseName);
-        if (cached.exists()) {
-            EXECUTOR.execute(() -> {
-                Bitmap bmp = decodeSampled(cached);
-                postIfStillRelevant(target, exerciseName, bmp, onLoaded);
-            });
-            return;
-        }
+        boolean hasUrl = imageUrl != null && !imageUrl.trim().isEmpty();
+        if (!cached.exists() && !hasUrl) return; // nič na stiahnutie — ostáva predvolený obrázok
 
-        if (imageUrl == null || imageUrl.trim().isEmpty()) return; // nič na stiahnutie — ostáva predvolený obrázok
-
+        // Slabý odkaz — bežiace sťahovanie (až 25 s) tak nedrží v pamäti už zatvorenú obrazovku
+        WeakReference<ImageView> targetRef = new WeakReference<>(target);
         EXECUTOR.execute(() -> {
-            Bitmap bmp = downloadAndCache(appCtx, exerciseName, imageUrl);
-            postIfStillRelevant(target, exerciseName, bmp, onLoaded);
+            Bitmap bmp = null;
+            if (cached.exists()) {
+                bmp = decodeSampled(cached);
+                // Nečitateľný súbor (napr. starší, kým sa nekontrolovalo, čo server poslal) — zmaž
+                // ho, nech sa fotka stiahne znova, inak by sa už nikdy neukázala
+                if (bmp == null) {
+                    //noinspection ResultOfMethodCallIgnored
+                    cached.delete();
+                }
+            }
+            if (bmp == null && hasUrl) bmp = downloadAndCache(appCtx, exerciseName, imageUrl);
+            postIfStillRelevant(targetRef, exerciseName, bmp, onLoaded);
         });
     }
 
-    private static void postIfStillRelevant(ImageView target, String exerciseName, Bitmap bmp, Runnable onLoaded) {
+    private static void postIfStillRelevant(WeakReference<ImageView> targetRef, String exerciseName, Bitmap bmp, java.util.function.Consumer<ImageView> onLoaded) {
         if (bmp == null) return; // chyba/žiadne dáta — necháme predvolený obrázok, appka kvôli tomu nespadne
         MEMORY.put(exerciseName, bmp);
         MAIN.post(() -> {
-            if (exerciseName.equals(target.getTag())) {
+            ImageView target = targetRef.get();
+            if (target != null && exerciseName.equals(target.getTag())) {
                 target.setImageBitmap(bmp);
-                if (onLoaded != null) onLoaded.run();
+                if (onLoaded != null) onLoaded.accept(target);
             }
         });
     }
@@ -153,6 +156,12 @@ public class ExerciseImageCache {
             conn.setReadTimeout(15_000);
             conn.setInstanceFollowRedirects(true);
 
+            // Len skutočný obrázok — Wi-Fi s prihlasovacou stránkou (hotel, posilňovňa) vráti namiesto
+            // fotky HTML, chybový kód servera tiež nie je fotka
+            if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) return null;
+            String contentType = conn.getContentType();
+            if (contentType != null && !contentType.toLowerCase(java.util.Locale.ROOT).startsWith("image/")) return null;
+
             try (InputStream in = conn.getInputStream();
                  OutputStream out = new FileOutputStream(tmpFile)) {
                 byte[] buffer = new byte[8192];
@@ -160,8 +169,11 @@ public class ExerciseImageCache {
                 while ((read = in.read(buffer)) != -1) out.write(buffer, 0, read);
             }
 
+            // Overiť, že sa súbor dá naozaj zobraziť, ešte PRED uložením pod finálnym menom
+            Bitmap bmp = decodeSampled(tmpFile);
+            if (bmp == null) return null;
             if (!tmpFile.renameTo(finalFile)) return null;
-            return decodeSampled(finalFile);
+            return bmp;
         } catch (IOException | RuntimeException e) {
             return null;
         } finally {

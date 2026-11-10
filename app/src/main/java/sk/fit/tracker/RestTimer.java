@@ -126,6 +126,19 @@ public final class RestTimer {
         return prefs(ctx).getLong(KEY_FINISHED_AT, 0L);
     }
 
+    /**
+     * Po reštarte telefónu (alebo aktualizácii appky) Android zabudne naplánovaný alarm, hoci podľa
+     * uloženého stavu odpočet ešte beží — koniec pauzy by potom neprišiel. Ak alarm chýba, naplánuj
+     * ho znova. Volá RestTimerBar pri zobrazení.
+     */
+    public static void ensureScheduled(Context ctx) {
+        if (!isRunning(ctx)) return;
+        Intent i = new Intent(ctx, RestTimerReceiver.class);
+        PendingIntent existing = PendingIntent.getBroadcast(ctx, 0, i,
+                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_NO_CREATE);
+        if (existing == null) schedule(ctx, getEndAt(ctx));
+    }
+
     // ---------------------------------------------------------------- notifikácie a alarm
 
     /** Na Android 13+ treba povolenie na notifikácie — opýtame sa raz, pri prvom spustení pauzy. */

@@ -79,6 +79,7 @@ public class ProfileActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setId(R.id.profile_scroll); // stabilné ID — po otočení sa zachová pozícia rolovania
         scroll.setBackgroundColor(getColor(R.color.bg_app));
 
         LinearLayout root = new LinearLayout(this);
@@ -142,6 +143,7 @@ public class ProfileActivity extends Activity {
         card.addView(heightLabel);
 
         etHeight = makeInput("napr. 180");
+        etHeight.setId(R.id.profile_height); // stabilné ID — rozpísaný text prežije otočenie telefónu
         card.addView(etHeight);
 
         TextView weightLabel = new TextView(this);
@@ -153,6 +155,7 @@ public class ProfileActivity extends Activity {
 
         float latestWeight = ProfileStore.getWeightKg(this);
         etWeight = makeInput(latestWeight > 0 ? "posledná: " + formatNum(latestWeight) + " kg" : "napr. 82.5");
+        etWeight.setId(R.id.profile_weight);
         card.addView(etWeight);
 
         // Sledované telesné obvody — obvod pása (hlavný ukazovateľ chudnutia) prvý, potom
@@ -174,7 +177,10 @@ public class ProfileActivity extends Activity {
                 "napr. 58", "📏 História obvodu stehna", "Zatiaľ žiadny záznam obvodu stehna.",
                 new BodyMeasurementStore("FitTrackerThigh")));
 
-        for (MeasurementField f : measurementFields) {
+        // Stabilné ID polí obvodov v rovnakom poradí ako measurementFields (pás, hrudník, biceps, stehno)
+        int[] measurementIds = {R.id.profile_waist, R.id.profile_chest, R.id.profile_biceps, R.id.profile_thigh};
+        for (int i = 0; i < measurementFields.size(); i++) {
+            MeasurementField f = measurementFields.get(i);
             TextView label = new TextView(this);
             label.setText(f.inputLabel);
             label.setTextColor(getColor(R.color.text_secondary));
@@ -184,6 +190,7 @@ public class ProfileActivity extends Activity {
 
             float latest = f.store.getLatest(this);
             f.input = makeInput(latest > 0 ? "posledný: " + formatNum(latest) + " cm" : f.inputHintExample);
+            if (i < measurementIds.length) f.input.setId(measurementIds[i]);
             card.addView(f.input);
         }
 
@@ -304,6 +311,20 @@ public class ProfileActivity extends Activity {
                 this, R.color.bg_input, R.color.input_border, dp(1), UiKit.dimenPx(this, R.dimen.radius_button)));
         btnRestore.setOnClickListener(v -> startImport());
         backupCard.addView(btnRestore);
+
+        // Návrat k dátam spred poslednej obnovy — len ak záchranná kópia existuje
+        if (BackupManager.hasSafetyCopy(this)) {
+            SimpleDateFormat fmt = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
+            TextView btnUndo = new TextView(this);
+            btnUndo.setText("↩ Vrátiť dáta spred obnovy ("
+                    + fmt.format(new Date(BackupManager.safetyCopyTime(this))) + ")");
+            btnUndo.setTextColor(getColor(R.color.text_secondary));
+            btnUndo.setTextSize(12);
+            btnUndo.setGravity(android.view.Gravity.CENTER);
+            btnUndo.setPadding(0, dp(12), 0, dp(4));
+            btnUndo.setOnClickListener(v -> confirmUndoRestore());
+            backupCard.addView(btnUndo);
+        }
 
         root.addView(backupCard);
 
@@ -739,10 +760,32 @@ public class ProfileActivity extends Activity {
             if (in == null) throw new IllegalStateException("Nepodarilo sa otvoriť zvolený súbor.");
             String json = readAll(in);
             BackupManager.restore(this, json);
-            Toast.makeText(this, "Dáta obnovené zo zálohy.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Dáta obnovené zo zálohy. Predchádzajúce dáta sú odložené — "
+                    + "vrátiš ich tlačidlom „Vrátiť dáta spred obnovy“.", Toast.LENGTH_LONG).show();
+            recreate(); // prekreslí históriu váhy, obvodov a ostatné údaje podľa obnovených dát
+        } catch (BackupManager.InvalidBackupException e) {
+            Toast.makeText(this, e.getMessage() + " Tvoje dáta ostali nezmenené.", Toast.LENGTH_LONG).show();
         } catch (Exception e) {
             Toast.makeText(this, "Obnovenie zlyhalo: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
+    }
+
+    private void confirmUndoRestore() {
+        new AlertDialog.Builder(this)
+                .setTitle("Vrátiť dáta spred obnovy?")
+                .setMessage("Appka sa vráti do stavu tesne pred poslednou obnovou zo zálohy. "
+                        + "Dáta z obnovenej zálohy sa tým prepíšu.")
+                .setPositiveButton("Vrátiť", (dialog, which) -> {
+                    try {
+                        BackupManager.undoLastRestore(this);
+                        Toast.makeText(this, "Dáta vrátené do stavu pred obnovou.", Toast.LENGTH_LONG).show();
+                        recreate();
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Vrátenie zlyhalo: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
+                })
+                .setNegativeButton("Zrušiť", null)
+                .show();
     }
 
     private String readAll(InputStream in) throws Exception {

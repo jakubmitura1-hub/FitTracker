@@ -122,6 +122,7 @@ public class RestTimerBar extends LinearLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        RestTimer.ensureScheduled(getContext()); // napr. po reštarte telefónu počas pauzy
         removeCallbacks(tick);
         post(tick);
     }

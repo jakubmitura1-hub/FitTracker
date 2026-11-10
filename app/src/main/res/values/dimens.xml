@@ -5,11 +5,6 @@
     <dimen name="radius_button">4dp</dimen>
     <dimen name="radius_chip">2dp</dimen>
 
-    <!-- Vzdušnejšie rozostupy (density 1.15×) -->
-    <dimen name="space_sm">9dp</dimen>
-    <dimen name="space_md">14dp</dimen>
-    <dimen name="space_lg">18dp</dimen>
-
     <!-- Nové: hrúbka vlasovej linky, ktorou sa teraz kreslia karty a oddeľovače -->
     <dimen name="stroke_hairline">1dp</dimen>
 </resources>

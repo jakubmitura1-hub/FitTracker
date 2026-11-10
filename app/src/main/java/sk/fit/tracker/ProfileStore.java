@@ -31,10 +31,16 @@ public class ProfileStore {
         return ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getFloat(KEY_WEIGHT_KG, 0f);
     }
 
-    /** Uloží výšku a zaznamená váhu do histórie pod dnešný dátum. */
-    public static void setProfile(Context ctx, float heightCm, float weightKg) {
-        setHeightCm(ctx, heightCm);
-        if (weightKg > 0) WeightStore.setWeight(ctx, ActivityStore.todayKey(), weightKg);
+    /**
+     * Váha platná v daný deň (yyyy-MM-dd) — pre kalórie staršieho tréningu: posledné váženie v ten
+     * deň alebo pred ním; ak je deň starší ako prvé váženie, prvé váženie. Bez histórie rovnako ako
+     * getWeightKg (pôvodné jednohodnotové pole).
+     */
+    public static float getWeightKgOn(Context ctx, String dateKey) {
+        java.util.TreeMap<String, Float> all = WeightStore.getAllSorted(ctx);
+        if (all.isEmpty() || dateKey == null) return getWeightKg(ctx);
+        java.util.Map.Entry<String, Float> e = all.floorEntry(dateKey);
+        return e != null ? e.getValue() : all.firstEntry().getValue();
     }
 
     /** Máme dosť údajov na výpočet kalórií? (potrebná aspoň váha) */

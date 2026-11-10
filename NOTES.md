@@ -139,3 +139,27 @@ Odhad 1RM, osobné rekordy a grafy objemu už appka má.
 - Pribudli prefs `FitTrackerFavorites`, `FitTrackerMediaAliases`, `FitTrackerFocus` a `FitTrackerFeatures`, plus podpora `StringSet`
   (typ `"ss"`). Obľúbené a premenované cviky sa predtým do zálohy vôbec neukladali.
   Obnovenie zo zálohy nebolo na telefóne testované, aby sa neprepísali dáta.
+
+## Opravy po kontrole kódu (2026-11-10, necommitnuté)
+
+Kontrola kódu: https://claude.ai/artifact/Bn6NCSTnWj1Gn8PfQECdts. Hotové a nainštalované na telefóne:
+
+- Dialógy v `DayDetailActivity` sa pri klávesnici zmenšia (`keepButtonsAboveKeyboard`), Uložiť je vždy vidieť.
+- Bod 1: rozpísaný dialóg cviku prežije otočenie aj zabitie appky (`onSaveInstanceState`, `saveRow`/`restoreRow`).
+  Stabilné ID v `res/values/ids.xml` pre Profil, Katalóg a deň.
+- Bod 2: `BackupManager.restore` najprv celé overí (`InvalidBackupException`), potom zapíše; pred obnovou
+  záchranná kópia `files/fittracker_pred_obnovou.json`, v Profile tlačidlo „Vrátiť dáta spred obnovy“.
+  `ActivityStore.isDateKey` chráni kalendár pred pokazenými kľúčmi.
+- Bod 3: `Exercise.totalVolume` ignoruje záporné (expander) a nulové váhy.
+- Bod 4: predvyplnenie z minulého tréningu len do prázdneho riadku.
+- Bod 5: osobný rekord = prvý tréning s najvyššou váhou, 0 kg nie je rekord (aj odznaky 🏆).
+- Bod 6: úprava len poznámky v katalógu nemení cvik na „vlastný“.
+- Bod 7: `ExerciseImageCache` kontroluje HTTP 200 + image/*, dekóduje pred uložením, pokazené súbory zmaže; WeakReference.
+- Bod 8: Progres stavia staršie tréningy až po rozbalení, história sa parsuje raz.
+- Bod 9: Java 17, AGP 8.2.2 (8.2.0 padal s JDK 21), R8 pre release, bez org.json a Jetifiera, Lint bez chýb.
+- Drobnosti: 0 opakovaní / 0:00 sa neuloží, váha v úprave na 2 desatinné miesta, čas tréningu len dnes,
+  kalórie z váhy platnej v ten deň (`ProfileStore.getWeightKgOn`), mazanie zdieľaných súborov z cache,
+  odpočet pauzy po reštarte (`RestTimer.ensureScheduled`), odstránený mŕtvy kód a nepoužité písmo Cormorant.
+
+Neurobené (treba rozhodnutie používateľa): podpisovanie release, upgrade AGP/targetSdk 35+ (edge-to-edge,
+prediktívne Späť), rozdelenie `DayDetailActivity`, zjednotenie duplicitných pomocných metód, ikony svalov na pozadí.

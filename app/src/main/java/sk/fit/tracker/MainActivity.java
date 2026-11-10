@@ -82,6 +82,34 @@ public class MainActivity extends Activity {
         if (savedInstanceState == null && !FocusStore.isOnboardingDone(this)) {
             startActivity(OnboardingActivity.intent(this, false));
         }
+
+        if (savedInstanceState == null) {
+            deleteOldSharedFiles();
+            ExerciseMedia.preloadInBackground(this);
+        }
+    }
+
+    /**
+     * Zmaže dočasné súbory, ktoré appka vytvorila na zdieľanie (záloha s celou históriou, kópia .apk,
+     * obrázky tréningov) — inak by v telefóne ostávali natrvalo. Hodina rezerva, aby ich appka,
+     * do ktorej sa zdieľalo (napr. Google Disk), stihla prečítať.
+     */
+    private void deleteOldSharedFiles() {
+        java.io.File cacheDir = getCacheDir();
+        new Thread(() -> {
+            java.io.File[] files = cacheDir.listFiles();
+            if (files == null) return;
+            long cutoff = System.currentTimeMillis() - 60L * 60 * 1000;
+            for (java.io.File f : files) {
+                String n = f.getName();
+                boolean shared = n.equals("fittracker_zaloha.json") || n.equals("FitTracker.apk")
+                        || (n.startsWith("fittracker_trening_") && n.endsWith(".png"));
+                if (shared && f.lastModified() < cutoff) {
+                    //noinspection ResultOfMethodCallIgnored
+                    f.delete();
+                }
+            }
+        }, "cleanup-shared-files").start();
     }
 
     @Override

@@ -12,6 +12,7 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.AutoCompleteTextView;
@@ -75,10 +76,42 @@ public class DayDetailActivity extends Activity {
     // Meranie trvania silového tréningu — čas od prvej pridanej série v tejto relácii po zatvorenie.
     private Long sessionFirstSetAtMillis = null;
 
+    // Otvorený dialóg cviku a funkcia, ktorá vráti jeho rozpísaný stav. Pri otočení telefónu alebo
+    // keď Android zavrie appku na pozadí sa stav uloží (onSaveInstanceState) a dialóg sa po návrate
+    // otvorí znova s tými istými, ešte neuloženými sériami. null = dialóg nie je otvorený.
+    private static final String STATE_EXERCISE_DIALOG = "exercise_dialog";
+    private AlertDialog exerciseDialog;
+    private java.util.function.Supplier<Bundle> exerciseDialogState;
+
     @Override
     protected void onPause() {
         super.onPause();
         accumulateWorkoutTime();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (exerciseDialogState != null) outState.putBundle(STATE_EXERCISE_DIALOG, exerciseDialogState.get());
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Stav je už uložený v onSaveInstanceState — dialóg treba zavrieť, inak by "visel" na zničenom okne
+        if (exerciseDialog != null && exerciseDialog.isShowing()) exerciseDialog.dismiss();
+        super.onDestroy();
+    }
+
+    /** Znovu otvorí dialóg cviku s rozpísanými sériami po otočení / obnovení obrazovky. */
+    private void restoreExerciseDialog(Bundle state) {
+        Category c = Category.byKey(state.getString("cat"));
+        if (c == null) return;
+        List<Exercise> list = exercisesByCategory.get(c.key);
+        if (list == null) return;
+        int editIndex = state.getInt("edit", -1);
+        // Upravovaný cvik medzitým nemusí existovať (napr. obnova zo zálohy) — vtedy ako nový záznam
+        Integer idx = (editIndex >= 0 && editIndex < list.size()) ? editIndex : null;
+        showExerciseDialog(c, idx, state);
     }
 
     /** Pripočíta uplynutý čas tejto editačnej relácie k celkovému trvaniu tréningu za deň. */
@@ -107,6 +140,7 @@ public class DayDetailActivity extends Activity {
         setContentView(outer);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setId(R.id.day_scroll); // stabilné ID — Android si po otočení zapamätá pozíciu rolovania
         scroll.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
         outer.addView(scroll);
@@ -210,6 +244,12 @@ public class DayDetailActivity extends Activity {
         btnSave.setLayoutParams(saveLp);
         btnSave.setOnClickListener(v -> saveAndClose());
         outer.addView(btnSave);
+
+        // Obrazovka bola znovu vytvorená (otočenie, návrat po zavretí na pozadí) s otvoreným dialógom cviku
+        if (savedInstanceState != null) {
+            Bundle dialogState = savedInstanceState.getBundle(STATE_EXERCISE_DIALOG);
+            if (dialogState != null) restoreExerciseDialog(dialogState);
+        }
     }
 
     // ─── Zhrnutie dňa (lokálne pravidlá, bez AI/siete) ─────────────────────────
@@ -324,7 +364,7 @@ public class DayDetailActivity extends Activity {
             return card;
         }
 
-        float weightKg = ProfileStore.getWeightKg(this);
+        float weightKg = ProfileStore.getWeightKgOn(this, dateKey); // váha v ten deň, nie dnešná
         float trackedMinutes = WorkoutTimeStore.getMinutes(this, dateKey);
         float strengthMinutes = trackedMinutes;
         boolean estimatedTime = false;
@@ -889,6 +929,7 @@ public class DayDetailActivity extends Activity {
                 .setNegativeButton("Zrušiť", null)
                 .setCancelable(false)
                 .create();
+        keepButtonsAboveKeyboard(dialog);
 
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -913,7 +954,7 @@ public class DayDetailActivity extends Activity {
                 int finalCalories = calories;
                 if (finalCalories == 0 && speed > 0 && ProfileStore.hasProfile(this)) {
                     finalCalories = Math.round(CalorieCalculator.cardioKcal(
-                            ProfileStore.getWeightKg(this), duration, speed, incline));
+                            ProfileStore.getWeightKgOn(this, dateKey), duration, speed, incline));
                 }
 
                 CardioSession session = new CardioSession(duration, distance, speed, incline, finalCalories);
@@ -937,6 +978,11 @@ public class DayDetailActivity extends Activity {
 
     /** editIndex == null → nový cvik v partii c; inak úprava existujúceho na danom indexe. */
     private void showExerciseDialog(Category c, Integer editIndex) {
+        showExerciseDialog(c, editIndex, null);
+    }
+
+    /** restore != null → dialóg sa otvára znova po otočení obrazovky s rozpísaným stavom z restore. */
+    private void showExerciseDialog(Category c, Integer editIndex, Bundle restore) {
         Exercise editing = (editIndex != null)
                 ? exercisesByCategory.get(c.key).get(editIndex) : null;
         // Pri úprave existujúceho cvičenia je typ merania natrvalo fixovaný na to, čo už má
@@ -1309,13 +1355,13 @@ public class DayDetailActivity extends Activity {
                     etName.setText(newName);
                     etName.setSelection(newName.length());
                     switchType.accept(metricType);
-                    refreshExercisePreview(ivPreview, c, newName, exerciseDefsByName);
+                    refreshExercisePreview(ivPreview, c, newName);
                     // nový vlastný cvik — zatiaľ nemá žiadnu históriu, autoFill je no-op
                 });
             } else {
                 ExerciseDefinition def = exerciseDefsByName.get(picked);
                 switchType.accept(def != null ? def.metricType : MetricType.WEIGHT_AND_REPS);
-                refreshExercisePreview(ivPreview, c, picked, exerciseDefsByName);
+                refreshExercisePreview(ivPreview, c, picked);
                 autoFillFirstRowFromHistory.run();
             }
         });
@@ -1333,8 +1379,10 @@ public class DayDetailActivity extends Activity {
                     ExerciseDefinition def = exerciseDefsByName.get(name);
                     MetricType detected = last != null ? last.metricType() : (def != null ? def.metricType : null);
                     switchType.accept(detected);
-                    refreshExercisePreview(ivPreview, c, name, exerciseDefsByName);
-                    if (!locked && setRows.size() == 1) applyHistorical.accept(last);
+                    refreshExercisePreview(ivPreview, c, name);
+                    // Predvyplniť z minulého tréningu len prázdny riadok — nikdy neprepísať, čo už
+                    // používateľ napísal (alebo čo sa obnovilo po otočení obrazovky)
+                    autoFillFirstRowFromHistory.run();
                 }
             }
         });
@@ -1342,7 +1390,26 @@ public class DayDetailActivity extends Activity {
         // Naplň série
         updateSetsLabel.run();
         fillRows.accept(editing != null ? editing.sets : null);
-        refreshExercisePreview(ivPreview, c, editing != null ? editing.name : "", exerciseDefsByName);
+        refreshExercisePreview(ivPreview, c, editing != null ? editing.name : "");
+
+        // Obnova po otočení obrazovky — presne to, čo bolo rozpísané (aj čiastočne vyplnené riadky)
+        if (restore != null) {
+            String restoredName = restore.getString("name", "");
+            etName.setText(restoredName);
+            if (!locked) currentType[0] = MetricType.fromCode(restore.getString("type"));
+            updateSetsLabel.run();
+            clearRows.run();
+            int rowCount = restore.getInt("rowCount", 0);
+            for (int i = 0; i < rowCount; i++) {
+                Bundle rowState = restore.getBundle("row" + i);
+                if (rowState == null) continue;
+                addRow.run();
+                restoreRow(setRows.get(setRows.size() - 1), currentType[0], rowState);
+            }
+            if (setRows.isEmpty()) addRow.run();
+            tvHint.setText(restore.getString("hint", ""));
+            refreshExercisePreview(ivPreview, c, restoredName);
+        }
 
         // "Minulý tréning" — to isté ako auto-fill vyššie, len na ručné vyžiadanie kedykoľvek počas rozrábania.
         btnCopyLast.setOnClickListener(v -> {
@@ -1389,11 +1456,37 @@ public class DayDetailActivity extends Activity {
                 .setNegativeButton("Zrušiť", null)
                 .setCancelable(false) // náhodný ťuk mimo dialóg (spotené prsty) nesmie zahodiť rozrobené série
                 .create();
+        keepButtonsAboveKeyboard(dialog);
+
+        // Rozpísaný stav dialógu pre onSaveInstanceState (otočenie / zavretie appky na pozadí)
+        exerciseDialog = dialog;
+        exerciseDialogState = () -> {
+            Bundle state = new Bundle();
+            state.putString("cat", c.key);
+            state.putInt("edit", editIndex != null ? editIndex : -1);
+            state.putString("name", etName.getText().toString());
+            state.putString("type", currentType[0].code());
+            state.putString("hint", tvHint.getText().toString());
+            state.putInt("rowCount", setRows.size());
+            for (int i = 0; i < setRows.size(); i++) {
+                state.putBundle("row" + i, saveRow(setRows.get(i), currentType[0]));
+            }
+            return state;
+        };
+        dialog.setOnDismissListener(d -> {
+            if (exerciseDialog == dialog) {
+                exerciseDialog = null;
+                exerciseDialogState = null;
+            }
+        });
 
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             positive.setOnClickListener(v -> {
-                String name = etName.getText().toString().trim();
+                // Znaky, ktoré appka používa ako oddeľovače pri ukladaní (Exercise.serialize ich aj tak
+                // zahodí) — odstrániť už tu, aby sa meno v pamäti zhodovalo s uloženým a história sa našla
+                String name = etName.getText().toString()
+                        .replace("::", "").replace(";", "").replace(",", "").trim();
                 if (name.isEmpty()) {
                     Toast.makeText(this, "Zadaj názov cvičenia.", Toast.LENGTH_SHORT).show();
                     return;
@@ -1407,7 +1500,7 @@ public class DayDetailActivity extends Activity {
                         String durStr = ((EditText) r[1]).getText().toString();
                         if (durStr.trim().isEmpty()) continue; // úplne prázdny riadok — v poriadku, preskoč
                         Integer seconds = SetEntry.parseDuration(durStr);
-                        if (seconds == null) { invalidRow = true; break; }
+                        if (seconds == null || seconds <= 0) { invalidRow = true; break; } // 0:00 nie je séria
                         sets.add(withRpe(SetEntry.duration(seconds), r));
                     }
                 } else if (currentType[0] == MetricType.BODYWEIGHT_AND_REPS) {
@@ -1416,7 +1509,7 @@ public class DayDetailActivity extends Activity {
                         if (repsStr.trim().isEmpty()) continue; // úplne prázdny riadok — v poriadku, preskoč
 
                         Integer reps = parseRepsOrNull(repsStr);
-                        if (reps == null) { invalidRow = true; break; }
+                        if (reps == null || reps <= 0) { invalidRow = true; break; } // 0 opakovaní nie je séria
 
                         boolean bodyweightOnly = ((CheckBox) r[2]).isChecked();
                         int bandIdx = ((Spinner) r[3]).getSelectedItemPosition();
@@ -1445,7 +1538,8 @@ public class DayDetailActivity extends Activity {
 
                         Float w = parseWeightOrNull(wStr);
                         Integer reps = parseRepsOrNull(rStr);
-                        if (w == null || reps == null) {
+                        // 0 opakovaní alebo záporná váha by pokazili 1RM, objem aj rekordy
+                        if (w == null || reps == null || reps <= 0 || w < 0) {
                             invalidRow = true; // čiastočne vyplnená / nečitateľná séria — NIKDY ju nezahoď potichu
                             break;
                         }
@@ -1473,7 +1567,11 @@ public class DayDetailActivity extends Activity {
 
                 // *** Okamžite ulož na disk — každé pridanie/úprava ***
                 ExerciseStore.setExercises(this, dateKey, c.key, list);
-                if (sessionFirstSetAtMillis == null) sessionFirstSetAtMillis = System.currentTimeMillis();
+                // Čas tréningu merať len pri dnešnom dni — pri dopisovaní/oprave starého dňa by sa
+                // namiesto tréningu meral čas úprav a pripočítal sa k minútam (a kalóriám) toho dňa
+                if (sessionFirstSetAtMillis == null && dateKey.equals(ActivityStore.todayKey())) {
+                    sessionFirstSetAtMillis = System.currentTimeMillis();
+                }
 
                 // Partia sa do kalendára/štatistík odvodí automaticky podľa toho, či má dnes
                 // aspoň 1 cvik — žiadny manuálny checkbox, žiadne obmedzenie kombinácií.
@@ -1728,6 +1826,7 @@ public class DayDetailActivity extends Activity {
             builder.setNegativeButton("Zrušiť", null);
         }
         AlertDialog dialog = builder.create();
+        keepButtonsAboveKeyboard(dialog);
 
         dialog.setOnShowListener(d -> {
             Button positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
@@ -1746,6 +1845,17 @@ public class DayDetailActivity extends Activity {
     // ─── Helper metódy ────────────────────────────────────────────────────────
 
     /**
+     * Pri otvorenej klávesnici sa dialóg zmenší a posunie nad ňu, takže tlačidlá Uložiť/Zrušiť
+     * ostanú stále viditeľné (obsah sa roluje). Bez toho klávesnica tlačidlá prekryla a dalo sa
+     * k nim dostať až po preklikaní Enterom cez všetky polia, kým sa klávesnica nezavrela.
+     */
+    private void keepButtonsAboveKeyboard(AlertDialog dialog) {
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        }
+    }
+
+    /**
      * Zosynchronizuje stav ovládacích prvkov jedného BODYWEIGHT_AND_REPS riadku série:
      * "Iba vlastná váha" vypína aj expander aj pridanú záťaž; vybraný expander (asistencia)
      * vypína pole pridanej záťaže, keďže naraz dáva zmysel len jedno z toho.
@@ -1761,29 +1871,19 @@ public class DayDetailActivity extends Activity {
     }
 
     /**
-     * Nastaví predvolený obrázok (silueta svalu danej partie) a spustí ExerciseImageCache,
-     * ktorý ho potichu vymení za profesionálny ilustračný obrázok cviku, ak je pre daný cvik
-     * v katalógu nastavená imageUrl (z disku okamžite, inak sa raz stiahne a natrvalo uloží).
+     * Nastaví predvolený obrázok (silueta svalu danej partie); zabudované cviky ho potom potichu
+     * vymenia za fotku z free-exercise-db (ExerciseMedia — z disku hneď, inak sa raz stiahne).
+     * Vlastné cviky fotku nemajú, ostane silueta.
      */
-    private void refreshExercisePreview(ImageView iv, Category c, String exerciseName,
-                                         Map<String, ExerciseDefinition> exerciseDefsByName) {
+    private void refreshExercisePreview(ImageView iv, Category c, String exerciseName) {
         int muscleRes = Category.muscleDrawableFor(c.key);
         if (muscleRes != 0) iv.setImageDrawable(Category.muscleIcon(this, c.key));
-        if (exerciseName == null || exerciseName.trim().isEmpty()) {
-            iv.setTag(null);
-            return;
+        iv.setTag(null); // zruší prípadné ešte bežiace načítanie fotky predošlého cviku
+        if (exerciseName == null || exerciseName.trim().isEmpty()) return;
+        ExerciseMedia.Info media = ExerciseMedia.get(this, exerciseName);
+        if (media != null && media.imageCount > 0) {
+            ExerciseImageCache.loadInto(this, media.imageCacheKey(0), media.imageUrl(0), iv);
         }
-        ExerciseDefinition def = exerciseDefsByName.get(exerciseName);
-        String imageUrl = def != null ? def.imageUrl : null;
-        if (imageUrl == null) {
-            // Zabudované cviky majú fotku z free-exercise-db (pozri ExerciseMedia)
-            ExerciseMedia.Info media = ExerciseMedia.get(this, exerciseName);
-            if (media != null && media.imageCount > 0) {
-                ExerciseImageCache.loadInto(this, media.imageCacheKey(0), media.imageUrl(0), iv);
-                return;
-            }
-        }
-        ExerciseImageCache.loadInto(this, exerciseName, imageUrl, iv);
     }
 
     /**
@@ -1858,6 +1958,54 @@ public class DayDetailActivity extends Activity {
                 })
                 .setNegativeButton("Zrušiť", null)
                 .show();
+    }
+
+    /**
+     * Surový obsah jedného riadku série (presne tak, ako je napísaný, aj neúplný) — na uloženie
+     * rozpísaného dialógu pri otočení obrazovky. Rozloženie View[] pozri pri addRow v showExerciseDialog.
+     */
+    private Bundle saveRow(View[] r, MetricType type) {
+        Bundle b = new Bundle();
+        if (type == MetricType.DURATION) {
+            b.putString("a", ((EditText) r[1]).getText().toString());
+        } else if (type == MetricType.BODYWEIGHT_AND_REPS) {
+            b.putString("a", ((EditText) r[1]).getText().toString());
+            b.putBoolean("bw", ((CheckBox) r[2]).isChecked());
+            b.putInt("band", ((Spinner) r[3]).getSelectedItemPosition());
+            b.putString("b", ((EditText) r[4]).getText().toString());
+        } else {
+            b.putString("a", ((EditText) r[1]).getText().toString());
+            b.putString("b", ((EditText) r[2]).getText().toString());
+            b.putInt("unit", ((Spinner) r[3]).getSelectedItemPosition());
+        }
+        Object chip = r[0].getTag();
+        if (chip instanceof TextView && ((TextView) chip).getTag() instanceof Float) {
+            b.putFloat("rpe", (Float) ((TextView) chip).getTag());
+        }
+        return b;
+    }
+
+    /** Opak saveRow — vráti do riadku série presne to, čo v ňom bolo rozpísané. */
+    private void restoreRow(View[] r, MetricType type, Bundle b) {
+        if (type == MetricType.DURATION) {
+            ((EditText) r[1]).setText(b.getString("a", ""));
+        } else if (type == MetricType.BODYWEIGHT_AND_REPS) {
+            ((EditText) r[1]).setText(b.getString("a", ""));
+            CheckBox cb = (CheckBox) r[2];
+            Spinner band = (Spinner) r[3];
+            EditText added = (EditText) r[4];
+            cb.setChecked(b.getBoolean("bw", true));
+            int bandIdx = b.getInt("band", 0);
+            band.setSelection(bandIdx >= 0 && bandIdx < BAND_LABELS.size() ? bandIdx : 0);
+            added.setText(b.getString("b", ""));
+            syncBodyweightRowEnabled(cb, band, added);
+        } else {
+            ((EditText) r[1]).setText(b.getString("a", ""));
+            ((EditText) r[2]).setText(b.getString("b", ""));
+            int unitIdx = b.getInt("unit", 0);
+            ((Spinner) r[3]).setSelection(unitIdx >= 0 && unitIdx < UNIT_LABELS.size() ? unitIdx : 0);
+        }
+        setRpe((TextView) r[0].getTag(), b.getFloat("rpe", 0f));
     }
 
     private void copyRowValues(View[] from, View[] to, MetricType type) {
@@ -1966,10 +2114,17 @@ public class DayDetailActivity extends Activity {
         }
     }
 
+    /**
+     * Číslo do editovateľného poľa (váha, kardio) — celé bez desatinných miest, inak až na 2 desatinné
+     * miesta bez koncových núl ("12,25", "22,5"). Predtým len 1 miesto, takže 12,25 kg sa pri úprave
+     * a uložení potichu zmenilo na 12,3 kg.
+     */
     private String formatW(float w) {
-        return (w == Math.floor(w))
-                ? String.format(Locale.getDefault(), "%.0f", w)
-                : String.format(Locale.getDefault(), "%.1f", w);
+        if (w == Math.floor(w)) return String.format(Locale.getDefault(), "%.0f", w);
+        String s = String.format(Locale.getDefault(), "%.2f", w);
+        while (s.endsWith("0")) s = s.substring(0, s.length() - 1);
+        if (s.endsWith(",") || s.endsWith(".")) s = s.substring(0, s.length() - 1);
+        return s;
     }
 
     private String formatDateNice(String dateKeyStr) {

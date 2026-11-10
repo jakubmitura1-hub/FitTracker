@@ -63,8 +63,8 @@ public class ActivityStore {
         TreeMap<String, Set<String>> result = new TreeMap<>();
         for (Map.Entry<String, ?> e : all.entrySet()) {
             String key = e.getKey();
-            // Validuj formát dátumu yyyy-MM-dd
-            if (key.length() == 10 && key.charAt(4) == '-' && key.charAt(7) == '-') {
+            // Validuj formát dátumu yyyy-MM-dd — pokazený kľúč by inak zhodil kalendár (parseInt)
+            if (isDateKey(key)) {
                 Object val = e.getValue();
                 if (val instanceof String) {
                     Set<String> set = new HashSet<>();
@@ -76,6 +76,19 @@ public class ActivityStore {
             }
         }
         return result;
+    }
+
+    /** Či je text dátumový kľúč v tvare yyyy-MM-dd (len číslice a pomlčky na správnych miestach). */
+    public static boolean isDateKey(String key) {
+        if (key == null || key.length() != 10 || key.charAt(4) != '-' || key.charAt(7) != '-') return false;
+        for (int i = 0; i < 10; i++) {
+            if (i == 4 || i == 7) continue;
+            char ch = key.charAt(i);
+            if (ch < '0' || ch > '9') return false;
+        }
+        int month = Integer.parseInt(key.substring(5, 7));
+        int day = Integer.parseInt(key.substring(8, 10));
+        return month >= 1 && month <= 12 && day >= 1 && day <= 31;
     }
 
     /** Vráti dátum (yyyy-MM-dd) posledného výskytu danej kategórie, alebo null. */
@@ -172,19 +185,5 @@ public class ActivityStore {
         } catch (Exception e) {
             return dateKey;
         }
-    }
-
-    /** Zoznam dátumov (yyyy-MM-dd) za posledných N dní kde sa kategória vyskytla, najnovšie prvé. */
-    public static List<String> datesInLastDays(Context ctx, String categoryKey, int days) {
-        Map<String, Set<String>> all = getAllEntries(ctx);
-        List<String> result = new ArrayList<>();
-        for (Map.Entry<String, Set<String>> e : all.entrySet()) {
-            if (e.getValue().contains(categoryKey)) {
-                int ds = daysSince(e.getKey());
-                if (ds >= 0 && ds < days) result.add(e.getKey());
-            }
-        }
-        java.util.Collections.sort(result, java.util.Collections.reverseOrder());
-        return result;
     }
 }

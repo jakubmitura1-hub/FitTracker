@@ -53,6 +53,7 @@ public class ExerciseCatalogActivity extends Activity {
     private String selectedFilterKey = ALL_CATEGORIES;
 
     private static final int REQ_DETAIL = 1;
+    private static final String STATE_FILTER = "filter";
 
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -88,6 +89,7 @@ public class ExerciseCatalogActivity extends Activity {
         header.addView(subtitle);
 
         EditText etSearch = new EditText(this);
+        etSearch.setId(R.id.catalog_search); // stabilné ID — hľadaný text prežije otočenie telefónu
         etSearch.setHint("Hľadať cvik...");
         etSearch.setInputType(InputType.TYPE_CLASS_TEXT);
         etSearch.setTextColor(getColor(R.color.text_primary));
@@ -120,6 +122,11 @@ public class ExerciseCatalogActivity extends Activity {
             if (!Category.GROUP_WORKOUT.equals(c.group) || "cardio".equals(c.key)) continue;
             addFilterChip(c.key, c.label);
         }
+        // Po otočení telefónu ostane vybraný ten istý filter (ak jeho chip stále existuje)
+        if (savedInstanceState != null) {
+            String savedFilter = savedInstanceState.getString(STATE_FILTER);
+            if (savedFilter != null && chipRow.findViewWithTag(savedFilter) != null) selectedFilterKey = savedFilter;
+        }
         refreshChipStyles();
 
         emptyView = new TextView(this);
@@ -131,6 +138,7 @@ public class ExerciseCatalogActivity extends Activity {
 
         // GridView recykluje karty — pri ~100 cvikoch s fotkami by obyčajný ScrollView držal všetky naraz
         GridView grid = new GridView(this);
+        grid.setId(R.id.catalog_grid); // stabilné ID — po otočení sa zachová pozícia rolovania
         grid.setNumColumns(2);
         grid.setHorizontalSpacing(dp(10));
         grid.setVerticalSpacing(dp(10));
@@ -166,6 +174,12 @@ public class ExerciseCatalogActivity extends Activity {
         outer.addView(btnBack);
 
         renderList();
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putString(STATE_FILTER, selectedFilterKey);
     }
 
     /** Návrat z detailu cviku: obnoví hviezdičky a vykoná prípadnú úpravu/zmazanie vyžiadanú z detailu. */

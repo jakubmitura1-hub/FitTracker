@@ -100,9 +100,10 @@ public class ExerciseMedia {
             iv.setTag(null); // zruší prípadné ešte bežiace načítanie pre recyklovanú kartu
             return;
         }
-        ExerciseImageCache.loadInto(ctx, media.imageCacheKey(imageIndex), url, iv, () -> {
-            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            iv.setPadding(0, 0, 0, 0);
+        // ImageView sa odovzdá až pri použití — callback tak nedrží v pamäti zatvorenú obrazovku
+        ExerciseImageCache.loadInto(ctx, media.imageCacheKey(imageIndex), url, iv, view -> {
+            view.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            view.setPadding(0, 0, 0, 0);
         });
     }
 
@@ -133,6 +134,15 @@ public class ExerciseMedia {
         String original = load(ctx).containsKey(oldName) ? oldName : prefs.getString(oldName, null);
         if (original == null) return;
         prefs.edit().remove(oldName).putString(newName, original).apply();
+    }
+
+    /**
+     * Načíta databázu cvikov (assets JSON, ~160 KB) vopred na pozadí — inak by sa parsovala na hlavnom
+     * vlákne pri prvom otvorení katalógu/detailu a obrazovka by sa na chvíľu zasekla. Volá MainActivity.
+     */
+    public static void preloadInBackground(Context ctx) {
+        Context appCtx = ctx.getApplicationContext();
+        new Thread(() -> load(appCtx), "preload-exercise-media").start();
     }
 
     private static SharedPreferences aliases(Context ctx) {

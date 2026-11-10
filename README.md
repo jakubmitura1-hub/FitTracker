@@ -4,11 +4,14 @@ Android appka na sledovanie tréningov a aktivít v kalendári.
 
 ## Čo appka robí
 
-- **Kalendár** — klikneš na deň a zaškrtneš čo si robil
-- **Tréning**: Nohy, Chrbát, Hrudník, Ramená, Biceps, Triceps, Brucho/Core, Kardio
-- **Iné**: Intimita
-- Farebné bodky pri každom dni v kalendári podľa toho čo si zaznamenal
-- **Štatistiky**: pre každú kategóriu vidíš kedy bola posledný krát + počet za 7 a 30 dní
+- **Kalendár** — klikneš na deň a zapíšeš cviky so sériami (váha × opakovania, vlastná váha, čas) a kardio
+- **Partie**: Hrudník, Chrbát, Ramená, Biceps, Triceps, Trapézy, Nohy, Lýtka, Brucho, Kardio
+- Farebná linka a ikona partie pri každom dni v kalendári, 🔥 pri tréningovej sérii
+- **Štatistiky**: svaly za posledný týždeň na postave, kedy bola partia naposledy, počet za 7 a 30 dní, objem
+- **Progres**: grafy max. váhy / odhadu 1RM, osobné rekordy, história každého cviku
+- **Katalóg cvikov** s fotkami, cieľovými svalmi a postupom
+- **Profil**: váha a telesné obvody v čase, záloha a obnova dát
+- Odpočet pauzy medzi sériami, RPE, režim Sprievodca / Len zapisovanie
 
 ## Inštalácia (Android Studio)
 

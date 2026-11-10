@@ -78,9 +78,7 @@ public class ExerciseStore {
 
         Map<String, List<Object[]>> result = new TreeMap<>();
         for (Map.Entry<String, String> e : sortedRaw.entrySet()) {
-            String[] keyParts = e.getKey().split("#");
-            if (keyParts.length < 1) continue;
-            String dateKey = keyParts[0];
+            String dateKey = e.getKey().split("#")[0];
 
             for (String s : e.getValue().split(";")) {
                 Exercise ex = Exercise.parse(s);
@@ -120,18 +118,24 @@ public class ExerciseStore {
      * má samostatný graf priamo na karte cviku (ExerciseHistoryActivity).
      */
     public static Map<String, Object[]> getPersonalBestsByExercise(Context ctx) {
-        Map<String, List<Object[]>> history = getHistoryGroupedByExerciseName(ctx);
+        return getPersonalBestsByExercise(getHistoryGroupedByExerciseName(ctx));
+    }
+
+    /** To isté z už načítanej histórie (getHistoryGroupedByExerciseName) — bez opätovného čítania všetkých dát. */
+    public static Map<String, Object[]> getPersonalBestsByExercise(Map<String, List<Object[]>> history) {
         Map<String, Object[]> bests = new TreeMap<>();
         for (Map.Entry<String, List<Object[]>> entry : history.entrySet()) {
             String name = entry.getKey();
             float bestWeight = 0;
             String bestDate = null;
+            // História je chronologická; ostrá nerovnosť (>) ponechá PRVÝ deň, keď rekord padol,
+            // a nulová váha (napr. tehličky bez prevodu na kg) rekord nikdy nevytvorí ("0 kg PB").
             for (Object[] o : entry.getValue()) {
                 String dateKey = (String) o[0];
                 Exercise ex = (Exercise) o[1];
                 if (ex.metricType() != MetricType.WEIGHT_AND_REPS) continue;
                 float w = ex.maxWeight();
-                if (w >= bestWeight) {
+                if (w > bestWeight) {
                     bestWeight = w;
                     bestDate = dateKey;
                 }

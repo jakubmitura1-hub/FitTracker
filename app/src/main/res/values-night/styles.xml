@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <!-- Rovnaký Theme.FitTracker ako values/styles.xml, len s tmavou status/nav bar ikonografiou
          (windowLightStatusBar/NavigationBar musí byť false na tmavom podklade, inak zmiznú
          biele ikony hodín/signálu). Farby (@color/...) sa samé prepnú na values-night/colors.xml. -->
@@ -8,7 +8,7 @@
         <item name="android:navigationBarColor">@color/bg_app</item>
         <item name="android:windowBackground">@color/bg_app</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="27">false</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
         <item name="android:textColorSecondary">@color/text_secondary</item>
         <item name="colorAccent">@color/accent_primary</item>

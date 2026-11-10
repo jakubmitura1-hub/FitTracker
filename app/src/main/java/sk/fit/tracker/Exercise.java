@@ -11,18 +11,6 @@ public class Exercise {
     public String name;
     public List<SetEntry> sets = new ArrayList<>();
 
-    /**
-     * URL profesionálneho detailného anatomického vizuálu (3D sval + konkrétny stroj, napr.
-     * v štýle WeightTraining.Guide / Hammer Strength) pre tento konkrétny cvik. Zatiaľ vždy
-     * null — appka nemá zavedené žiadne sieťové načítavanie obrázkov. Nie je súčasťou
-     * serialize()/parse() (nič sa neukladá), je to len logický háčik pripravený pre budúcnosť:
-     * keď sa sem raz doplní URL (napr. z katalógu podľa presného stroja), UI si ho vyžiada cez
-     * getDetailedVisualUrl() a namiesto lokálneho obrázku svalu (Category.muscleDrawableFor)
-     * načíta tento — vtedy bude treba pridať knižnicu ako Glide/Picasso, aby sa veľké obrázky
-     * sťahovali/cachovali bez zahltenia pamäte telefónu; NEriešiť to ručným Bitmap/URLConnection.
-     */
-    private String detailedVisualUrl = null;
-
     public Exercise(String name) {
         this.name = name;
     }
@@ -30,15 +18,6 @@ public class Exercise {
     public Exercise(String name, List<SetEntry> sets) {
         this.name = name;
         this.sets = sets;
-    }
-
-    /** Null, kým appka nemá zdroj profesionálnych vizuálov — UI má v tom prípade zobraziť lokálny obrázok svalu. */
-    public String getDetailedVisualUrl() {
-        return detailedVisualUrl;
-    }
-
-    public void setDetailedVisualUrl(String detailedVisualUrl) {
-        this.detailedVisualUrl = detailedVisualUrl;
     }
 
     /** Formát: "Názov::12x10,14x8,16x6" (váhaXopak, oddelené čiarkou) */
@@ -91,12 +70,19 @@ public class Exercise {
         return max;
     }
 
-    /** Celkový objem (váha v kg × opakovania, súčet cez všetky série) tohto cvičenia. Časové série neprispievajú. */
+    /**
+     * Celkový objem (váha v kg × opakovania, súčet cez všetky série) tohto cvičenia. Časové série
+     * neprispievajú. Pri vlastnej váhe sa počíta len pridaná záťaž (+kg); séria s expanderom má
+     * uloženú zápornú "záťaž" (asistenciu) a tá do objemu neprispieva — inak by zhyby s gumou
+     * objem dňa znižovali.
+     */
     public float totalVolume() {
         float volume = 0;
         for (SetEntry s : sets) {
             if (s.metricType == MetricType.DURATION) continue;
-            volume += s.weightInKgEquivalent() * s.reps;
+            float kg = s.weightInKgEquivalent();
+            if (kg <= 0) continue;
+            volume += kg * s.reps;
         }
         return volume;
     }

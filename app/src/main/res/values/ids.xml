@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stabilné ID pre prvky vytvárané v kóde. Android si podľa ID pamätá ich obsah (napísaný text,
+     pozíciu rolovania) pri otočení telefónu alebo keď appku na pozadí zavrie a potom obnoví.
+     Bez ID sa tento stav stratí. -->
+<resources>
+    <!-- DayDetailActivity -->
+    <item name="day_scroll" type="id" />
+
+    <!-- ProfileActivity -->
+    <item name="profile_scroll" type="id" />
+    <item name="profile_height" type="id" />
+    <item name="profile_weight" type="id" />
+    <item name="profile_waist" type="id" />
+    <item name="profile_chest" type="id" />
+    <item name="profile_biceps" type="id" />
+    <item name="profile_thigh" type="id" />
+
+    <!-- ExerciseCatalogActivity -->
+    <item name="catalog_search" type="id" />
+    <item name="catalog_grid" type="id" />
+</resources>

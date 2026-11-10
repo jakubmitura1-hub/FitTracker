@@ -212,13 +212,6 @@ public class ExerciseCatalog {
         return new ArrayList<>(Arrays.asList(src));
     }
 
-    /** Len primárne slovenské názvy z pevného zoznamu (spätná kompatibilita). */
-    public static List<String> defaultsFor(String categoryKey) {
-        List<String> names = new ArrayList<>();
-        for (ExerciseDefinition def : defaultDefinitionsFor(categoryKey)) names.add(def.sk);
-        return names;
-    }
-
     /**
      * Pevné cviky (s SK/EN/alt) + vlastné pridané cviky (len SK, bez prekladu) pre danú partiu.
      * Zabudované cviky, ktoré si používateľ cez katalógový editor "zmazal"/premenoval/preradil
@@ -238,13 +231,6 @@ public class ExerciseCatalog {
         LinkedHashSet<String> set = new LinkedHashSet<>();
         for (ExerciseDefinition def : getDefinitionsFor(ctx, categoryKey)) set.add(def.sk);
         return new ArrayList<>(set);
-    }
-
-    /** Len názvy vlastných (custom) cvikov pre danú partiu. */
-    public static List<String> getCustom(Context ctx, String categoryKey) {
-        List<String> names = new ArrayList<>();
-        for (ExerciseDefinition def : getCustomDefinitions(ctx, categoryKey)) names.add(def.sk);
-        return names;
     }
 
     /** Vlastné (custom) cviky pre danú partiu, vrátane ich uloženého typu merania. */
@@ -276,11 +262,6 @@ public class ExerciseCatalog {
 
     private static String serializeCustomToken(String name, MetricType metricType) {
         return name + CUSTOM_METRIC_SEPARATOR + metricType.code();
-    }
-
-    /** Zachované pre spätnú kompatibilitu — pridá vlastný cvik s klasickým typom merania (váha × opakovania). */
-    public static void addCustom(Context ctx, String categoryKey, String name) {
-        addCustom(ctx, categoryKey, name, WEIGHT_AND_REPS);
     }
 
     /** Natrvalo pridá vlastný cvik (s daným typom merania) do zoznamu pre danú partiu (ak už neexistuje). */
@@ -320,17 +301,24 @@ public class ExerciseCatalog {
      */
     public static String findCategoryKeyForExercise(Context ctx, String exerciseName) {
         if (exerciseName == null) return null;
-        for (Category c : Category.all()) {
+        return categoryKeysByExerciseName(ctx).get(exerciseName);
+    }
+
+    /**
+     * Mapa názov cviku -> kľúč partie pre celý katalóg naraz (rovnaké pravidlá ako
+     * findCategoryKeyForExercise: prvá zhoda vyhráva, čisté partie pred legacy). Na obrazovkách
+     * s mnohými cvikmi (Progres) sa tak katalóg prechádza raz, nie pre každý cvik zvlášť.
+     */
+    public static java.util.Map<String, String> categoryKeysByExerciseName(Context ctx) {
+        java.util.Map<String, String> map = new java.util.HashMap<>();
+        List<Category> cats = new ArrayList<>(Category.all());
+        cats.addAll(Category.legacyAll());
+        for (Category c : cats) {
             for (ExerciseDefinition def : getDefinitionsFor(ctx, c.key)) {
-                if (def.sk.equals(exerciseName)) return c.key;
+                if (!map.containsKey(def.sk)) map.put(def.sk, c.key);
             }
         }
-        for (Category c : Category.legacyAll()) {
-            for (ExerciseDefinition def : getDefinitionsFor(ctx, c.key)) {
-                if (def.sk.equals(exerciseName)) return c.key;
-            }
-        }
-        return null;
+        return map;
     }
 
     /**
@@ -425,10 +413,16 @@ public class ExerciseCatalog {
         if (trimmedName.isEmpty()) return false;
 
         boolean nameOrCategoryChanged = !trimmedName.equals(entry.name) || !newCategoryKey.equals(entry.categoryKey);
-        if (nameOrCategoryChanged) {
-            for (String existing : getAll(ctx, newCategoryKey)) {
-                if (existing.equalsIgnoreCase(trimmedName)) return false; // kolízia s existujúcim cvikom
-            }
+        if (!nameOrCategoryChanged) {
+            // Mení sa len poznámka — cvik ostáva tam, kde je (zabudovaný sa nesmie zmeniť na "vlastný"
+            // a vlastný sa nesmie presunúť na koniec zoznamu)
+            ExerciseNotesStore.setNote(ctx, entry.name, newNotes);
+            return true;
+        }
+        for (String existing : getAll(ctx, newCategoryKey)) {
+            // Samotný upravovaný cvik nie je kolízia (napr. oprava veľkého písmena "plank" -> "Plank")
+            if (existing.equals(entry.name) && newCategoryKey.equals(entry.categoryKey)) continue;
+            if (existing.equalsIgnoreCase(trimmedName)) return false; // kolízia s existujúcim cvikom
         }
 
         if (entry.isDefault) {
